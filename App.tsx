@@ -4,7 +4,7 @@ import { sendMessageToGemini } from './services/gemini';
 import ChatMessage from './components/ChatMessage';
 import ChatInput from './components/ChatInput';
 import TriagePanel from './components/TriagePanel';
-import { Info, Menu, X, HeartHandshake, Lock, ShieldCheck, Volume2, VolumeX, Loader2, AlertCircle, CheckCircle2 } from 'lucide-react';
+import { Info, X, HeartHandshake, Lock, ShieldCheck, Volume2, VolumeX, Loader2 } from 'lucide-react';
 
 // Safe access for environment variables
 const env = (import.meta as any).env || {};
@@ -28,9 +28,6 @@ function App() {
     return false;
   });
   
-  // Debug notification state
-  const [debugNotification, setDebugNotification] = useState<{text: string, type: 'info' | 'success' | 'error'} | null>(null);
-  
   // Default language set to Ukrainian ('ua')
   const [privacyTab, setPrivacyTab] = useState<'ua' | 'ru' | 'en'>('ua');
   const [welcomeTab, setWelcomeTab] = useState<'ua' | 'ru' | 'en'>('ua');
@@ -51,13 +48,6 @@ function App() {
   useEffect(() => {
     scrollToBottom();
   }, [messages]);
-
-  // Helper for debug notifications
-  const showDebugMessage = (text: string, type: 'info' | 'success' | 'error') => {
-    setDebugNotification({ text, type });
-    // Auto-hide after 4 seconds
-    setTimeout(() => setDebugNotification(null), 4000);
-  };
 
   // --- Auto-Voice Logic ---
 
@@ -158,8 +148,7 @@ function App() {
   const speakText = async (text: string, langCode: string) => {
     stopAllAudio();
     setIsLoadingAudio(true);
-    showDebugMessage("Завантаження голосу з сервера...", 'info');
-
+    
     try {
       const response = await fetch("/api/tts", {
         method: "POST",
@@ -185,27 +174,46 @@ function App() {
       };
 
       audio.onplay = () => {
-         showDebugMessage("Успіх! Грає серверний голос", 'success');
+         // Audio started successfully
       };
 
       audio.onerror = () => {
-        console.error("Audio playback error");
+        console.error("Audio playback error, switching to browser fallback");
         setIsLoadingAudio(false);
-        showDebugMessage("Помилка відтворення. Перехід на браузер.", 'error');
         fallbackBrowserSpeak(text, langCode);
       };
 
       await audio.play();
 
     } catch (error) {
-      console.error("TTS Generation failed:", error);
+      console.error("TTS Generation failed (switching to browser fallback):", error);
       setIsLoadingAudio(false);
-      
-      let errorMsg = "Error";
-      if (error instanceof Error) errorMsg = error.message;
-      
-      showDebugMessage(`Помилка сервера: ${errorMsg}. Перехід на браузер.`, 'error');
       fallbackBrowserSpeak(text, langCode);
+    }
+  };
+
+  // Helper to get welcome text for TTS
+  const getWelcomeMessageText = (lang: 'ua' | 'ru' | 'en') => {
+    switch (lang) {
+      case 'ru':
+        return "Привет! Меня зовут TriPsy. Я — ИИ-чат первичной психологической поддержки. Поделись со мной своими мыслями.";
+      case 'en':
+        return "Hello! My name is TriPsy. I am an AI initial psychological support chat. Share your thoughts with me.";
+      case 'ua':
+      default:
+        return "Вітаю! Мене звати TriPsy. Я — ШІ-чат первинної психологічної підтримки. Поділіться зі мною своїми думками.";
+    }
+  };
+
+  // Handle Voice Toggle
+  const handleVoiceToggle = () => {
+    const newState = !isAutoVoiceEnabled;
+    setIsAutoVoiceEnabled(newState);
+
+    // If turning on voice and chat is empty, speak the welcome message
+    if (newState && messages.length === 0) {
+      const text = getWelcomeMessageText(welcomeTab);
+      speakText(text, welcomeTab);
     }
   };
 
@@ -387,23 +395,13 @@ function App() {
       {/* Main Content Area */}
       <div className="flex-1 flex flex-col h-full relative">
         
-        {/* Debug Notification Toast */}
-        {debugNotification && (
-          <div className={`fixed top-20 left-1/2 transform -translate-x-1/2 z-[60] px-6 py-3 rounded-full shadow-lg text-white text-sm font-medium flex items-center gap-2 animate-fade-in-down ${
-            debugNotification.type === 'success' ? 'bg-green-600' :
-            debugNotification.type === 'error' ? 'bg-red-600' :
-            'bg-blue-600'
-          }`}>
-            {debugNotification.type === 'success' && <CheckCircle2 className="w-4 h-4" />}
-            {debugNotification.type === 'error' && <AlertCircle className="w-4 h-4" />}
-            {debugNotification.type === 'info' && <Loader2 className="w-4 h-4 animate-spin" />}
-            {debugNotification.text}
-          </div>
-        )}
-        
         {/* Header */}
         <header className="bg-white/80 backdrop-blur-md border-b border-slate-200 px-6 py-4 flex items-center justify-between z-10 sticky top-0">
-          <div className="flex items-center gap-3">
+          <div 
+            className="flex items-center gap-3 cursor-pointer hover:opacity-80 transition-opacity"
+            onClick={() => window.location.reload()}
+            title="Reload Chat"
+          >
             <div className="bg-teal-100 p-2 rounded-xl">
               <HeartHandshake className="w-6 h-6 text-teal-600" />
             </div>
@@ -416,7 +414,7 @@ function App() {
           <div className="flex items-center gap-3">
             {/* Auto-Voice Toggle Button */}
             <button
-              onClick={() => setIsAutoVoiceEnabled(!isAutoVoiceEnabled)}
+              onClick={handleVoiceToggle}
               className={`p-2 rounded-full transition-all duration-200 border ${
                 isAutoVoiceEnabled 
                   ? 'bg-teal-100 text-teal-700 border-teal-200 shadow-sm' 
