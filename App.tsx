@@ -6,7 +6,7 @@ import ChatInput from './components/ChatInput';
 import TriagePanel from './components/TriagePanel';
 import { Info, Menu, X, HeartHandshake, Lock, ShieldCheck, Volume2, VolumeX, Loader2, AlertCircle, CheckCircle2 } from 'lucide-react';
 
-const HF_TOKEN = process.env.HF_TOKEN;
+const HF_TOKEN = process.env.VITE_HF_TOKEN || "";
 
 function App() {
   const [messages, setMessages] = useState<Message[]>([]);
@@ -263,7 +263,7 @@ function App() {
   const getHeaderSubtitle = () => {
     switch (welcomeTab) {
       case 'ru':
-        return "Рядом, когда трудно";
+        return "Рядом, когда тяжело";
       case 'en':
         return "Here when it's hard";
       case 'ua':
@@ -275,12 +275,12 @@ function App() {
   const getConfidentialityText = () => {
     switch (welcomeTab) {
       case 'ru':
-        return "Абсолютно конфиденциально";
+        return "Гарантии конфиденциальности";
       case 'en':
-        return "Absolutely Confidential";
+        return "Privacy Guarantees";
       case 'ua':
       default:
-        return "Абсолютно конфіденційно";
+        return "Гарантії конфіденційності";
     }
   };
 
@@ -515,11 +515,14 @@ function App() {
 
                 <div className="pt-4">
                   <button 
-                    onClick={() => setShowPrivacy(true)}
-                    className="group text-base font-medium text-slate-500 bg-white px-6 py-3 rounded-full border border-slate-200 shadow-sm inline-flex items-center gap-2 hover:border-teal-300 hover:text-teal-700 hover:shadow-md transition-all cursor-pointer"
+                    onClick={() => {
+                      setPrivacyTab(welcomeTab);
+                      setShowPrivacy(true);
+                    }}
+                    className="group text-sm font-medium text-slate-500 bg-white px-4 py-2 rounded-full border border-slate-200 shadow-sm inline-flex items-center gap-2 hover:border-teal-300 hover:text-teal-700 hover:shadow-md transition-all cursor-pointer"
                   >
-                    <Lock className="w-5 h-5 text-teal-500 group-hover:text-teal-600" />
-                    <span className="text-lg">{getConfidentialityText()}</span>
+                    <Lock className="w-4 h-4 text-teal-500 group-hover:text-teal-600" />
+                    <span>{getConfidentialityText()}</span>
                   </button>
                 </div>
               </div>
@@ -587,7 +590,8 @@ function App() {
           <div className="bg-white rounded-2xl shadow-2xl max-w-2xl w-full max-h-[85vh] flex flex-col animate-fade-in-up z-10">
             <div className="px-6 py-4 border-b border-slate-100 flex flex-col sm:flex-row justify-between items-center gap-4 bg-slate-50/50 rounded-t-2xl">
               <h2 className="text-xl font-bold text-slate-800 flex items-center gap-2">
-                <ShieldCheck className="w-6 h-6 text-teal-600"/> Privacy Policy
+                <ShieldCheck className="w-6 h-6 text-teal-600"/> 
+                {privacyTab === 'ua' ? 'Політика конфіденційності' : privacyTab === 'ru' ? 'Политика конфиденциальности' : 'Privacy Policy'}
               </h2>
               
               {/* Tabs */}
