@@ -51,7 +51,7 @@ function App() {
 
   // --- Auto-Voice Logic ---
 
-  // Load available voices on mount for fallback
+  // Load available voices on mount
   useEffect(() => {
     const updateVoices = () => {
       const availableVoices = window.speechSynthesis.getVoices();
@@ -102,51 +102,57 @@ function App() {
     }
   }, [messages, isAutoVoiceEnabled, latestTriage, welcomeTab]);
 
-  // Fallback to Browser SpeechSynthesis
-  const fallbackBrowserSpeak = (text: string, langCode: string) => {
-    const utterance = new SpeechSynthesisUtterance(text);
-
-    // Determine target language prefix (BCP 47)
-    let targetLangPrefix = 'uk'; // Default to Ukrainian
-    if (langCode === 'ru') targetLangPrefix = 'ru';
-    if (langCode === 'en') targetLangPrefix = 'en';
-
-    // Find suitable voices
-    const currentVoices = voices.length > 0 ? voices : window.speechSynthesis.getVoices();
-    const langVoices = currentVoices.filter(voice => 
-      voice.lang.toLowerCase().startsWith(targetLangPrefix)
-    );
-
-    // Priority selection: "human-like" voices
-    const priorityKeywords = ["Google", "Premium", "Enhanced", "Neural", "Natural"];
-    let selectedVoice = langVoices.find(voice => 
-      priorityKeywords.some(keyword => voice.name.includes(keyword))
-    );
-
-    if (!selectedVoice && langVoices.length > 0) {
-      selectedVoice = langVoices[0];
+  // Hybrid Speak Function
+  const speakText = async (text: string, langCode: string) => {
+    stopAllAudio();
+    
+    // Check if language is Ukrainian
+    if (langCode === 'ua' || langCode === 'uk') {
+      // Use Browser Native for Ukrainian
+      speakBrowserUA(text);
+    } else {
+      // Use Server API for others (RU/EN)
+      speakServerApi(text, langCode);
     }
+  };
+
+  // 1. Browser-native TTS for Ukrainian
+  const speakBrowserUA = (text: string) => {
+    setIsLoadingAudio(true); // Show spinner briefly while setting up
+
+    const utterance = new SpeechSynthesisUtterance(text);
+    utterance.lang = 'uk-UA';
+    utterance.rate = 0.9;
+    utterance.pitch = 1.0;
+
+    // Voice selection logic for UA
+    const currentVoices = voices.length > 0 ? voices : window.speechSynthesis.getVoices();
+    const ukVoices = currentVoices.filter(v => v.lang.includes('uk') || v.lang.includes('UA'));
+
+    const preferredNames = ["Google", "Lesya", "Milena", "UKR"];
+    const selectedVoice = ukVoices.find(v => 
+      preferredNames.some(name => v.name.includes(name))
+    );
 
     if (selectedVoice) {
       utterance.voice = selectedVoice;
-      utterance.lang = selectedVoice.lang;
-    } else {
-      switch (langCode) {
-        case 'ru': utterance.lang = 'ru-RU'; break;
-        case 'en': utterance.lang = 'en-US'; break;
-        case 'ua': default: utterance.lang = 'uk-UA'; break;
-      }
+    } else if (ukVoices.length > 0) {
+      utterance.voice = ukVoices[0];
     }
 
-    utterance.rate = 0.9;
-    utterance.pitch = 1.0;
-    
+    // Spinner Logic: Hide when it actually starts speaking
+    utterance.onstart = () => setIsLoadingAudio(false);
+    utterance.onend = () => setIsLoadingAudio(false);
+    utterance.onerror = (e) => {
+      console.error("Browser TTS Error:", e);
+      setIsLoadingAudio(false);
+    };
+
     window.speechSynthesis.speak(utterance);
   };
 
-  // Main Speak Function (Proxy via /api/tts with Fallback)
-  const speakText = async (text: string, langCode: string) => {
-    stopAllAudio();
+  // 2. Server API TTS for Other Languages
+  const speakServerApi = async (text: string, langCode: string) => {
     setIsLoadingAudio(true);
     
     try {
@@ -178,17 +184,15 @@ function App() {
       };
 
       audio.onerror = () => {
-        console.error("Audio playback error, switching to browser fallback");
+        console.error("Audio playback error");
         setIsLoadingAudio(false);
-        fallbackBrowserSpeak(text, langCode);
       };
 
       await audio.play();
 
     } catch (error) {
-      console.error("TTS Generation failed (switching to browser fallback):", error);
+      console.error("TTS Generation failed:", error);
       setIsLoadingAudio(false);
-      fallbackBrowserSpeak(text, langCode);
     }
   };
 
