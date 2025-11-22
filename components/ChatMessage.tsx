@@ -11,6 +11,10 @@ interface ChatMessageProps {
 const ChatMessage: React.FC<ChatMessageProps> = ({ message, language = 'ua' }) => {
   const isUser = message.role === 'user';
 
+  // Clean the text to ensure no JSON blocks appear in the client UI
+  // This regex removes content between ```json and ``` (including the markers)
+  const cleanText = isUser ? message.text : message.text.replace(/```json[\s\S]*?```/g, '').trim();
+
   return (
     <div className={`flex w-full ${isUser ? 'justify-end' : 'justify-start'} mb-6 animate-fade-in-up`}>
       <div className={`flex max-w-[85%] md:max-w-[75%] gap-3 ${isUser ? 'flex-row-reverse' : 'flex-row'}`}>
@@ -40,7 +44,7 @@ const ChatMessage: React.FC<ChatMessageProps> = ({ message, language = 'ua' }) =
                 strong: ({node, ...props}) => <strong className="font-semibold" {...props} />,
               }}
             >
-              {message.text}
+              {cleanText}
             </ReactMarkdown>
           </div>
 

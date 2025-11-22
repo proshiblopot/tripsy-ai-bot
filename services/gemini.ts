@@ -32,13 +32,13 @@ export const sendMessageToGemini = async (
   newMessage: string
 ): Promise<{ text: string; triage: TriageData | null }> => {
   
-  // Use import.meta.env for Vite environment variables
-  // We use 'as any' casting to avoid TypeScript errors in environments 
-  // where import.meta.env types aren't fully configured.
-  const apiKey = (import.meta as any).env.VITE_GOOGLE_API_KEY;
+  // Use safe access pattern for environment variables to prevent crashes
+  // if import.meta.env is undefined in specific runtime environments
+  const env = (import.meta as any).env || {};
+  const apiKey = env.VITE_GOOGLE_API_KEY;
 
   if (!apiKey) {
-    console.error("Google API Key is missing in Vercel Environment Variables");
+    console.error("Google API Key is missing in Environment Variables");
     return {
       text: "System Error: API Key is missing. Please check your VITE_GOOGLE_API_KEY configuration.",
       triage: null

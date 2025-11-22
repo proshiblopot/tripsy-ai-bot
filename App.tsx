@@ -6,7 +6,9 @@ import ChatInput from './components/ChatInput';
 import TriagePanel from './components/TriagePanel';
 import { Info, Menu, X, HeartHandshake, Lock, ShieldCheck, Volume2, VolumeX, Loader2, AlertCircle, CheckCircle2 } from 'lucide-react';
 
-const HF_TOKEN = process.env.VITE_HF_TOKEN || "";
+// Safe access for environment variables
+const env = (import.meta as any).env || {};
+const HF_TOKEN = env.VITE_HF_TOKEN || "";
 
 function App() {
   const [messages, setMessages] = useState<Message[]>([]);
@@ -16,6 +18,15 @@ function App() {
   const [showPrivacy, setShowPrivacy] = useState(false);
   const [isAutoVoiceEnabled, setIsAutoVoiceEnabled] = useState(false);
   const [isLoadingAudio, setIsLoadingAudio] = useState(false);
+  
+  // Expert Mode Logic
+  const [isExpertMode] = useState(() => {
+    if (typeof window !== 'undefined') {
+      const params = new URLSearchParams(window.location.search);
+      return params.get('mode') === 'expert';
+    }
+    return false;
+  });
   
   // Debug notification state
   const [debugNotification, setDebugNotification] = useState<{text: string, type: 'info' | 'success' | 'error'} | null>(null);
@@ -435,12 +446,15 @@ function App() {
               )}
             </button>
 
-            <button 
-              className="lg:hidden p-2 text-slate-500 hover:bg-slate-100 rounded-full"
-              onClick={() => setShowMobileTriage(!showMobileTriage)}
-            >
-              <Info className="w-6 h-6" />
-            </button>
+            {/* Only show info button in Expert Mode (or if needed for both, but request says clean UI for clients) */}
+            {isExpertMode && (
+              <button 
+                className="lg:hidden p-2 text-slate-500 hover:bg-slate-100 rounded-full"
+                onClick={() => setShowMobileTriage(!showMobileTriage)}
+              >
+                <Info className="w-6 h-6" />
+              </button>
+            )}
           </div>
         </header>
 
@@ -554,13 +568,15 @@ function App() {
         />
       </div>
 
-      {/* Desktop Triage Sidebar */}
-      <div className="hidden lg:block w-80 xl:w-96 p-4 border-l border-slate-200 bg-white/50 backdrop-blur-sm h-full overflow-hidden">
-        <TriagePanel data={latestTriage} />
-      </div>
+      {/* Desktop Triage Sidebar - Expert Mode Only */}
+      {isExpertMode && (
+        <div className="hidden lg:block w-80 xl:w-96 p-4 border-l border-slate-200 bg-white/50 backdrop-blur-sm h-full overflow-hidden">
+          <TriagePanel data={latestTriage} />
+        </div>
+      )}
 
-      {/* Mobile Triage Overlay */}
-      {showMobileTriage && (
+      {/* Mobile Triage Overlay - Expert Mode Only */}
+      {showMobileTriage && isExpertMode && (
         <div className="fixed inset-0 z-50 lg:hidden flex justify-end">
           <div 
             className="absolute inset-0 bg-black/20 backdrop-blur-sm"
