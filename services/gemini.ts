@@ -2,8 +2,6 @@ import { GoogleGenAI } from "@google/genai";
 import { Message, TriageData } from "../types";
 import { SYSTEM_INSTRUCTION } from "../constants";
 
-const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
-
 /**
  * Parses the raw response from Gemini to separate the conversational text
  * from the JSON triage data.
@@ -34,11 +32,28 @@ export const sendMessageToGemini = async (
   newMessage: string
 ): Promise<{ text: string; triage: TriageData | null }> => {
   
+  // Use import.meta.env for Vite environment variables
+  // We use 'as any' casting to avoid TypeScript errors in environments 
+  // where import.meta.env types aren't fully configured.
+  const apiKey = (import.meta as any).env.VITE_GOOGLE_API_KEY;
+
+  if (!apiKey) {
+    console.error("Google API Key is missing in Vercel Environment Variables");
+    return {
+      text: "System Error: API Key is missing. Please check your VITE_GOOGLE_API_KEY configuration.",
+      triage: null
+    };
+  }
+
+  // Initialize the client INSIDE the function to avoid "API Key must be set" errors 
+  // during initial page load or if the key is missing.
+  const ai = new GoogleGenAI({ apiKey });
+
   // Format history for Gemini API
   // Note: Gemini requires alternating user/model turns.
   const chatHistory = history.map(msg => ({
     role: msg.role,
-    parts: [{ text: msg.text }], // We only send the text part back to context, hiding the raw JSON from the "conversation" memory to keep it clean, or we could include it. Ideally, we keep context pure.
+    parts: [{ text: msg.text }], 
   }));
 
   try {
