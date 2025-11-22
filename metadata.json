@@ -1,0 +1,7 @@
+{
+  "name": "Copy of tripsy-bot",
+  "description": "An empathetic, first-line AI psychological support assistant powered by Gemini with real-time triage analysis.",
+  "requestFramePermissions": [
+    "microphone"
+  ]
+}
