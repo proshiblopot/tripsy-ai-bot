@@ -8,7 +8,7 @@ import { Info, Menu, X, HeartHandshake, Lock, ShieldCheck, Volume2, VolumeX, Loa
 
 // Safe access for environment variables
 const env = (import.meta as any).env || {};
-const HF_TOKEN = env.VITE_HF_TOKEN || "";
+// Note: HF_TOKEN is now handled server-side in /api/tts.js
 
 function App() {
   const [messages, setMessages] = useState<Message[]>([]);
@@ -154,33 +154,19 @@ function App() {
     window.speechSynthesis.speak(utterance);
   };
 
-  // Main Speak Function (HF with Fallback)
+  // Main Speak Function (Proxy via /api/tts with Fallback)
   const speakText = async (text: string, langCode: string) => {
     stopAllAudio();
-
-    // Fallback immediately if no token
-    if (!HF_TOKEN) {
-      console.log("No HF Token provided, using browser fallback.");
-      fallbackBrowserSpeak(text, langCode);
-      return;
-    }
-
     setIsLoadingAudio(true);
-    showDebugMessage("Попытка загрузки голоса с сервера...", 'info');
-
-    // Determine Model URL
-    let modelUrl = "https://api-inference.huggingface.co/models/facebook/mms-tts-ukr"; // Default
-    if (langCode === 'ru') modelUrl = "https://api-inference.huggingface.co/models/facebook/mms-tts-rus";
-    if (langCode === 'en') modelUrl = "https://api-inference.huggingface.co/models/facebook/mms-tts-eng";
+    showDebugMessage("Завантаження голосу з сервера...", 'info');
 
     try {
-      const response = await fetch(modelUrl, {
+      const response = await fetch("/api/tts", {
         method: "POST",
         headers: {
-          "Authorization": `Bearer ${HF_TOKEN}`,
           "Content-Type": "application/json",
         },
-        body: JSON.stringify({ inputs: text }),
+        body: JSON.stringify({ text: text, lang: langCode }),
       });
 
       if (!response.ok) {
@@ -199,13 +185,13 @@ function App() {
       };
 
       audio.onplay = () => {
-         showDebugMessage("Успех! Играет Hugging Face", 'success');
+         showDebugMessage("Успіх! Грає серверний голос", 'success');
       };
 
       audio.onerror = () => {
         console.error("Audio playback error");
         setIsLoadingAudio(false);
-        showDebugMessage("Ошибка воспроизведения. Переключаюсь на браузер.", 'error');
+        showDebugMessage("Помилка відтворення. Перехід на браузер.", 'error');
         fallbackBrowserSpeak(text, langCode);
       };
 
@@ -218,7 +204,7 @@ function App() {
       let errorMsg = "Error";
       if (error instanceof Error) errorMsg = error.message;
       
-      showDebugMessage(`Ошибка Hugging Face: ${errorMsg}. Переключаюсь на браузер.`, 'error');
+      showDebugMessage(`Помилка сервера: ${errorMsg}. Перехід на браузер.`, 'error');
       fallbackBrowserSpeak(text, langCode);
     }
   };
