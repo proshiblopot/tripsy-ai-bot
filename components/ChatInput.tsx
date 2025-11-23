@@ -4,9 +4,9 @@ import { Send, Loader2, Mic, MicOff, Phone, Heart } from 'lucide-react';
 interface ChatInputProps {
   onSend: (text: string) => void;
   isLoading: boolean;
-  language: 'ua' | 'ru' | 'en';
+  language: 'ua' | 'en';
   showSos: boolean;
-  sosLanguage: 'ua' | 'ru' | 'en';
+  sosLanguage: 'ua' | 'en';
 }
 
 const ChatInput: React.FC<ChatInputProps> = ({ onSend, isLoading, language, showSos, sosLanguage }) => {
@@ -17,8 +17,6 @@ const ChatInput: React.FC<ChatInputProps> = ({ onSend, isLoading, language, show
 
   const getPlaceholder = () => {
     switch (language) {
-      case 'ru':
-        return "Поделись мыслями...";
       case 'en':
         return "Share your thoughts...";
       case 'ua':
@@ -29,8 +27,6 @@ const ChatInput: React.FC<ChatInputProps> = ({ onSend, isLoading, language, show
 
   const getSosLabel = () => {
     switch (sosLanguage) {
-      case 'ru':
-        return "HELP! ПОЗВОНИТЬ";
       case 'en':
         return "HELP! CALL FOR HELP";
       case 'ua':
@@ -86,7 +82,7 @@ const ChatInput: React.FC<ChatInputProps> = ({ onSend, isLoading, language, show
     recognition.continuous = false;
     recognition.interimResults = false;
     // Set recognition language based on the selected interface language
-    recognition.lang = language === 'ua' ? 'uk-UA' : language === 'ru' ? 'ru-RU' : 'en-US';
+    recognition.lang = language === 'ua' ? 'uk-UA' : 'en-US';
     
     recognition.onstart = () => {
       setIsListening(true);

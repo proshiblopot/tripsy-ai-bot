@@ -28,9 +28,9 @@ function App() {
     return false;
   });
   
-  // Default language set to Ukrainian ('ua')
-  const [privacyTab, setPrivacyTab] = useState<'ua' | 'ru' | 'en'>('ua');
-  const [welcomeTab, setWelcomeTab] = useState<'ua' | 'ru' | 'en'>('ua');
+  // Default language set to Ukrainian ('ua'), only 'en' as alternative
+  const [privacyTab, setPrivacyTab] = useState<'ua' | 'en'>('ua');
+  const [welcomeTab, setWelcomeTab] = useState<'ua' | 'en'>('ua');
   
   // Store available system voices for fallback
   const [voices, setVoices] = useState<SpeechSynthesisVoice[]>([]);
@@ -95,7 +95,7 @@ function App() {
     if (lastMsg && lastMsg.role === 'model' && lastMsg.id !== lastSpokenMessageIdRef.current) {
       lastSpokenMessageIdRef.current = lastMsg.id;
       
-      // Determine language code: 'ua', 'ru', or 'en'
+      // Determine language code
       const langCode = latestTriage?.language || welcomeTab;
       
       speakText(lastMsg.text, langCode);
@@ -106,22 +106,22 @@ function App() {
   const speakText = async (text: string, langCode: string) => {
     stopAllAudio();
     
-    // Check if language is Ukrainian
-    if (langCode === 'ua' || langCode === 'uk') {
-      // Use Browser Native for Ukrainian
-      speakBrowserUA(text);
+    // Updated Logic:
+    // 1. If English -> Use Server API ('en')
+    // 2. All other cases (including Russian inputs which bot answers in UA) -> Use Browser Native with 'uk-UA'
+    if (langCode === 'en') {
+      speakServerApi(text, 'en');
     } else {
-      // Use Server API for others (RU/EN)
-      speakServerApi(text, langCode);
+      speakBrowserUA(text);
     }
   };
 
-  // 1. Browser-native TTS for Ukrainian
+  // 1. Browser-native TTS for Ukrainian (and fallback for others)
   const speakBrowserUA = (text: string) => {
     setIsLoadingAudio(true); // Show spinner briefly while setting up
 
     const utterance = new SpeechSynthesisUtterance(text);
-    utterance.lang = 'uk-UA';
+    utterance.lang = 'uk-UA'; // Force Ukrainian locale
     utterance.rate = 0.9;
     utterance.pitch = 1.0;
 
@@ -151,7 +151,7 @@ function App() {
     window.speechSynthesis.speak(utterance);
   };
 
-  // 2. Server API TTS for Other Languages
+  // 2. Server API TTS for English
   const speakServerApi = async (text: string, langCode: string) => {
     setIsLoadingAudio(true);
     
@@ -197,10 +197,8 @@ function App() {
   };
 
   // Helper to get welcome text for TTS
-  const getWelcomeMessageText = (lang: 'ua' | 'ru' | 'en') => {
+  const getWelcomeMessageText = (lang: 'ua' | 'en') => {
     switch (lang) {
-      case 'ru':
-        return "Привет! Меня зовут TriPsy. Я — ИИ-чат первичной психологической поддержки. Поделись со мной своими мыслями.";
       case 'en':
         return "Hello! My name is TriPsy. I am an AI initial psychological support chat. Share your thoughts with me.";
       case 'ua':
@@ -271,8 +269,6 @@ function App() {
 
   const getHeaderSubtitle = () => {
     switch (welcomeTab) {
-      case 'ru':
-        return "Рядом, когда тяжело";
       case 'en':
         return "Here when it's hard";
       case 'ua':
@@ -283,8 +279,6 @@ function App() {
 
   const getConfidentialityText = () => {
     switch (welcomeTab) {
-      case 'ru':
-        return "Гарантии конфиденциальности";
       case 'en':
         return "Privacy Guarantees";
       case 'ua':
@@ -327,35 +321,6 @@ function App() {
               <section className="bg-teal-50 p-4 rounded-xl border border-teal-100 text-teal-800">
                 <h3 className="text-sm font-bold mb-1">Кризові ресурси</h3>
                 <p>Якщо ви в небезпеці, будь ласка, негайно зателефонуйте до місцевої служби порятунку.</p>
-              </section>
-          </div>
-        );
-      case 'ru':
-        return (
-           <div className="space-y-6 text-sm leading-relaxed animate-fade-in">
-             <section>
-                <h3 className="text-base font-bold text-slate-800 mb-2">1. О сервисе</h3>
-                <p>TriPsy — это помощник психологической поддержки на базе искусственного интеллекта Google Gemini. Он создан для оказания первичной эмоциональной помощи и активного слушания. <strong>Он не заменяет профессиональную психотерапию или медицинскую консультацию.</strong></p>
-              </section>
-
-              <section>
-                <h3 className="text-base font-bold text-slate-800 mb-2">2. Конфиденциальность и Анонимность</h3>
-                <ul className="list-disc pl-5 space-y-1">
-                  <li>Ваши разговоры обрабатываются безопасно через API Google Generative AI.</li>
-                  <li>TriPsy не сохраняет историю чата в базе данных. Сессия существует только в локальной памяти вашего браузера, пока открыто окно.</li>
-                  <li>Как только вы закроете или обновите страницу, история разговора будет удалена для обеспечения вашей приватности.</li>
-                  <li>Мы рекомендуем не сообщать конкретную личную информацию (полные имена, адреса, документы) во время чата.</li>
-                </ul>
-              </section>
-
-              <section>
-                <h3 className="text-base font-bold text-slate-800 mb-2">3. Безопасность и Чрезвычайные ситуации</h3>
-                <p>Если вы сообщите о непосредственной угрозе причинения вреда себе или другим, TriPsy запрограммирован предоставить приоритет безопасности и дать информацию об экстренных службах. Однако, как ИИ, он не может вызвать службы спасения за вас.</p>
-              </section>
-              
-              <section className="bg-teal-50 p-4 rounded-xl border border-teal-100 text-teal-800">
-                <h3 className="text-sm font-bold mb-1">Кризисные ресурсы</h3>
-                <p>Если вы в опасности, пожалуйста, немедленно позвоните в местную службу спасения.</p>
               </section>
           </div>
         );
@@ -466,33 +431,25 @@ function App() {
                   <div className="flex p-1 bg-slate-200/60 rounded-xl mb-4">
                     <button 
                       onClick={() => setWelcomeTab('ua')}
-                      className={`px-4 py-1.5 text-sm font-semibold rounded-lg transition-all ${
+                      className={`px-4 py-1.5 text-xl font-semibold rounded-lg transition-all ${
                         welcomeTab === 'ua' 
                           ? 'bg-white text-teal-700 shadow-sm' 
-                          : 'text-slate-500 hover:text-slate-700'
+                          : 'text-slate-500 hover:text-slate-700 hover:bg-white/50'
                       }`}
+                      title="Українська"
                     >
-                      УКР
-                    </button>
-                    <button 
-                      onClick={() => setWelcomeTab('ru')}
-                      className={`px-4 py-1.5 text-sm font-semibold rounded-lg transition-all ${
-                        welcomeTab === 'ru' 
-                          ? 'bg-white text-teal-700 shadow-sm' 
-                          : 'text-slate-500 hover:text-slate-700'
-                      }`}
-                    >
-                      РУ
+                      🇺🇦
                     </button>
                     <button 
                       onClick={() => setWelcomeTab('en')}
-                      className={`px-4 py-1.5 text-sm font-semibold rounded-lg transition-all ${
+                      className={`px-4 py-1.5 text-xl font-semibold rounded-lg transition-all ${
                         welcomeTab === 'en' 
                           ? 'bg-white text-teal-700 shadow-sm' 
-                          : 'text-slate-500 hover:text-slate-700'
+                          : 'text-slate-500 hover:text-slate-700 hover:bg-white/50'
                       }`}
+                      title="English"
                     >
-                      ENG
+                      🇬🇧
                     </button>
                   </div>
                   
@@ -501,13 +458,6 @@ function App() {
                       <div className="space-y-2 animate-fade-in">
                         <p className="text-xl md:text-2xl font-bold text-slate-800">Вітаю! Мене звати TriPsy.</p>
                         <p className="text-lg md:text-xl text-slate-600 leading-relaxed">Я — ШІ-чат первинної психологічної підтримки. Поділіться зі мною своїми думками.</p>
-                      </div>
-                    )}
-
-                    {welcomeTab === 'ru' && (
-                      <div className="space-y-2 animate-fade-in">
-                        <p className="text-xl md:text-2xl font-bold text-slate-800">Привет! Меня зовут TriPsy.</p>
-                        <p className="text-lg md:text-xl text-slate-600 leading-relaxed">Я — ИИ-чат первичной психологической поддержки. Поделись со мной своими мыслями.</p>
                       </div>
                     )}
 
@@ -604,40 +554,32 @@ function App() {
             <div className="px-6 py-4 border-b border-slate-100 flex flex-col sm:flex-row justify-between items-center gap-4 bg-slate-50/50 rounded-t-2xl">
               <h2 className="text-xl font-bold text-slate-800 flex items-center gap-2">
                 <ShieldCheck className="w-6 h-6 text-teal-600"/> 
-                {privacyTab === 'ua' ? 'Політика конфіденційності' : privacyTab === 'ru' ? 'Политика конфиденциальности' : 'Privacy Policy'}
+                {privacyTab === 'ua' ? 'Політика конфіденційності' : 'Privacy Policy'}
               </h2>
               
               {/* Tabs */}
               <div className="flex p-1 bg-slate-200/60 rounded-lg">
                 <button 
                   onClick={() => setPrivacyTab('ua')}
-                  className={`px-3 py-1 text-xs font-semibold rounded-md transition-all ${
+                  className={`px-3 py-1 text-base rounded-md transition-all ${
                     privacyTab === 'ua' 
-                      ? 'bg-white text-teal-700 shadow-sm' 
-                      : 'text-slate-500 hover:text-slate-700'
+                      ? 'bg-white shadow-sm' 
+                      : 'hover:bg-white/50'
                   }`}
+                  title="Українська"
                 >
-                  УКР
-                </button>
-                <button 
-                  onClick={() => setPrivacyTab('ru')}
-                  className={`px-3 py-1 text-xs font-semibold rounded-md transition-all ${
-                    privacyTab === 'ru' 
-                      ? 'bg-white text-teal-700 shadow-sm' 
-                      : 'text-slate-500 hover:text-slate-700'
-                  }`}
-                >
-                  РУ
+                  🇺🇦
                 </button>
                 <button 
                   onClick={() => setPrivacyTab('en')}
-                  className={`px-3 py-1 text-xs font-semibold rounded-md transition-all ${
+                  className={`px-3 py-1 text-base rounded-md transition-all ${
                     privacyTab === 'en' 
-                      ? 'bg-white text-teal-700 shadow-sm' 
-                      : 'text-slate-500 hover:text-slate-700'
+                      ? 'bg-white shadow-sm' 
+                      : 'hover:bg-white/50'
                   }`}
+                  title="English"
                 >
-                  ENG
+                  🇬🇧
                 </button>
               </div>
 
@@ -658,7 +600,7 @@ function App() {
                 onClick={() => setShowPrivacy(false)} 
                 className="px-6 py-2.5 bg-teal-600 text-white rounded-xl hover:bg-teal-700 font-medium transition-all shadow-sm hover:shadow"
               >
-                {privacyTab === 'ua' ? 'Зрозуміло' : privacyTab === 'ru' ? 'Понятно' : 'I Understand'}
+                {privacyTab === 'ua' ? 'Зрозуміло' : 'I Understand'}
               </button>
             </div>
           </div>

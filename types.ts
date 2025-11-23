@@ -10,7 +10,7 @@ export interface TriageData {
   urgency: Urgency | string;
   suggested_action: string;
   flagged_keywords: string[];
-  language: 'ua' | 'ru' | 'en';
+  language: 'ua' | 'en';
 }
 
 export interface Message {
