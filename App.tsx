@@ -53,13 +53,21 @@ function App() {
     scrollToBottom();
   }, [messages]);
 
-  // Load Voices
+  // Load Voices - Robust Handler for Chrome Async Loading
   useEffect(() => {
     const updateVoices = () => {
-      setVoices(window.speechSynthesis.getVoices());
+      const loaded = window.speechSynthesis.getVoices();
+      setVoices(loaded);
     };
+
+    // Try to load immediately
     updateVoices();
-    window.speechSynthesis.onvoiceschanged = updateVoices;
+
+    // Listener for async load
+    if (window.speechSynthesis.onvoiceschanged !== undefined) {
+      window.speechSynthesis.onvoiceschanged = updateVoices;
+    }
+
     return () => { window.speechSynthesis.onvoiceschanged = null; };
   }, []);
 
@@ -93,7 +101,7 @@ function App() {
   const speakText = async (text: string, langCode: string) => {
     stopAllAudio();
     
-    // Clean Markdown characters (*, #, _) and others for smoother TTS reading
+    // Clean Markdown characters (*, #, _, etc) for clearer speech
     const cleanText = text.replace(/[*#_`~>]/g, '').trim();
 
     if (langCode === 'ua' || langCode === 'uk') {
@@ -110,24 +118,37 @@ function App() {
     utterance.rate = 0.9;
     utterance.pitch = 1.0;
 
-    // Smart Voice Selection (Upgraded)
-    // Filter for Ukrainian voices first
-    const ukVoices = voices.filter(v => v.lang.includes('uk') || v.lang.includes('UA'));
+    // Smart Voice Selection
+    // 1. Get latest voices directly from window to avoid state race conditions
+    const currentVoices = window.speechSynthesis.getVoices();
     
-    // Priorities list: Google first, then Lesya, then generic UKR, then high quality markers
-    const priorities = ["Google", "Lesya", "UKR", "Siri", "Premium", "Enhanced"];
+    // 2. Filter for Ukrainian voices
+    const ukVoices = currentVoices.filter(v => v.lang.includes('uk') || v.lang.includes('UA'));
     
     let selectedVoice = null;
 
-    // Iterate priorities to find best match
-    for (const keyword of priorities) {
-      selectedVoice = ukVoices.find(v => v.name.includes(keyword));
-      if (selectedVoice) break;
-    }
+    if (ukVoices.length > 0) {
+      // Priority 1: Google Voice (Best quality usually)
+      selectedVoice = ukVoices.find(v => v.name.includes("Google"));
 
-    // Fallback: If no priority voice found, use the first available UK voice
-    if (!selectedVoice && ukVoices.length > 0) {
-      selectedVoice = ukVoices[0];
+      // Priority 2: "Lesya" (Enhanced Ukrainian voice on some systems)
+      if (!selectedVoice) {
+        selectedVoice = ukVoices.find(v => v.name.includes("Lesya"));
+      }
+
+      // Priority 3: Enhanced/Premium/Siri
+      if (!selectedVoice) {
+        selectedVoice = ukVoices.find(v => 
+          v.name.includes("Enhanced") || 
+          v.name.includes("Premium") || 
+          v.name.includes("Siri")
+        );
+      }
+
+      // Fallback: Use the first available Ukrainian voice
+      if (!selectedVoice) {
+        selectedVoice = ukVoices[0];
+      }
     }
 
     if (selectedVoice) {
