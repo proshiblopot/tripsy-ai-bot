@@ -93,63 +93,78 @@ function App() {
     
     if (lastMsg && lastMsg.role === 'model' && lastMsg.id !== lastSpokenMessageIdRef.current) {
       lastSpokenMessageIdRef.current = lastMsg.id;
-      const langCode = latestTriage?.language || welcomeTab;
-      speakText(lastMsg.text, langCode);
+      speakText(lastMsg.text);
     }
-  }, [messages, isAutoVoiceEnabled, latestTriage, welcomeTab]);
+  }, [messages, isAutoVoiceEnabled]);
 
-  const speakText = async (text: string, langCode: string) => {
+  const speakText = async (text: string) => {
     stopAllAudio();
     
     // Clean Markdown characters (*, #, _, etc) for clearer speech
     const cleanText = text.replace(/[*#_`~>]/g, '').trim();
+    if (!cleanText) return;
 
-    if (langCode === 'ua' || langCode === 'uk') {
-      speakBrowserUA(cleanText);
-    } else {
-      speakServerApi(cleanText, langCode);
-    }
+    // Auto-detect language based on text content
+    // Check for Cyrillic characters (Ukrainian/Russian letters)
+    const isCyrillic = /[а-яА-ЯіїєґІЇЄҐ]/.test(cleanText);
+    
+    // If Cyrillic -> Use Ukrainian settings (Rate 1.1, UKR voices)
+    // If Latin/Other -> Use English settings (Rate 1.0, ENG voices)
+    const detectedLang = isCyrillic ? 'uk' : 'en';
+
+    // Use Native Browser TTS
+    speakNative(cleanText, detectedLang);
   };
 
-  const speakBrowserUA = (text: string) => {
+  const getBestVoice = (availableVoices: SpeechSynthesisVoice[], lang: string) => {
+    if (lang === 'ua' || lang === 'uk') {
+      const ukVoices = availableVoices.filter(v => v.lang.includes('uk') || v.lang.includes('UA'));
+      
+      if (ukVoices.length === 0) return null;
+
+      // Priority 1: Google Voice
+      let selected = ukVoices.find(v => v.name.includes("Google"));
+      // Priority 2: "Lesya" (Enhanced Ukrainian)
+      if (!selected) selected = ukVoices.find(v => v.name.includes("Lesya"));
+      // Priority 3: Enhanced/Premium/Siri
+      if (!selected) selected = ukVoices.find(v => v.name.includes("Enhanced") || v.name.includes("Premium") || v.name.includes("Siri"));
+      
+      return selected || ukVoices[0];
+    } 
+    
+    if (lang === 'en') {
+      const enVoices = availableVoices.filter(v => v.lang.startsWith('en'));
+      
+      if (enVoices.length === 0) return null;
+
+      // Priority for macOS / High Quality voices
+      let selected = enVoices.find(v => v.name === "Samantha");
+      if (!selected) selected = enVoices.find(v => v.name === "Daniel");
+      if (!selected) selected = enVoices.find(v => v.name.includes("Google US"));
+      if (!selected) selected = enVoices.find(v => v.name.includes("Google UK"));
+      if (!selected) selected = enVoices.find(v => v.name.includes("Premium") || v.name.includes("Enhanced"));
+      
+      return selected || enVoices[0];
+    }
+
+    return null;
+  };
+
+  const speakNative = (text: string, lang: string) => {
     setIsLoadingAudio(true);
     const utterance = new SpeechSynthesisUtterance(text);
-    utterance.lang = 'uk-UA';
-    utterance.rate = 0.9;
+    
+    // Set proper language code based on detected language
+    const isUA = lang === 'ua' || lang === 'uk';
+    utterance.lang = isUA ? 'uk-UA' : 'en-GB';
+    
+    // Tweak speed: 1.1 for UA (slightly faster), 1.0 for EN (standard)
+    utterance.rate = isUA ? 1.1 : 1.0;
     utterance.pitch = 1.0;
 
     // Smart Voice Selection
-    // 1. Get latest voices directly from window to avoid state race conditions
     const currentVoices = window.speechSynthesis.getVoices();
-    
-    // 2. Filter for Ukrainian voices
-    const ukVoices = currentVoices.filter(v => v.lang.includes('uk') || v.lang.includes('UA'));
-    
-    let selectedVoice = null;
-
-    if (ukVoices.length > 0) {
-      // Priority 1: Google Voice (Best quality usually)
-      selectedVoice = ukVoices.find(v => v.name.includes("Google"));
-
-      // Priority 2: "Lesya" (Enhanced Ukrainian voice on some systems)
-      if (!selectedVoice) {
-        selectedVoice = ukVoices.find(v => v.name.includes("Lesya"));
-      }
-
-      // Priority 3: Enhanced/Premium/Siri
-      if (!selectedVoice) {
-        selectedVoice = ukVoices.find(v => 
-          v.name.includes("Enhanced") || 
-          v.name.includes("Premium") || 
-          v.name.includes("Siri")
-        );
-      }
-
-      // Fallback: Use the first available Ukrainian voice
-      if (!selectedVoice) {
-        selectedVoice = ukVoices[0];
-      }
-    }
+    const selectedVoice = getBestVoice(currentVoices, lang);
 
     if (selectedVoice) {
       utterance.voice = selectedVoice;
@@ -163,6 +178,7 @@ function App() {
   };
 
   const speakServerApi = async (text: string, langCode: string) => {
+    // Fallback method kept for reference, but currently unused in favor of speakNative
     setIsLoadingAudio(true);
     try {
       const response = await fetch("/api/tts", {
@@ -200,7 +216,7 @@ function App() {
       const text = welcomeTab === 'ua' 
         ? "Вітаю! Мене звати TriPsy. Я — ШІ-чат первинної психологічної підтримки. Поділіться зі мною своїми думками."
         : "Hello! My name is TriPsy. I am an AI initial psychological support chat. Share your thoughts with me.";
-      speakText(text, welcomeTab);
+      speakText(text);
     }
   };
 
@@ -244,7 +260,7 @@ function App() {
         <div className="space-y-6 text-sm leading-relaxed">
           <section><h3 className="font-bold mb-2">1. Про сервіс</h3><p>TriPsy — це помічник психологічної підтримки на базі ШІ. Він надає первинну емоційну допомогу, але <strong>не замінює лікаря</strong>.</p></section>
           <section><h3 className="font-bold mb-2">2. Конфіденційність</h3><p>Сесія існує лише в пам'яті браузера. При оновленні сторінки історія зникає.</p></section>
-          <section className="bg-teal-50 p-4 rounded-xl border border-teal-100 text-teal-800"><h3 className="font-bold mb-1">Екстрена допомога</h3><p>При загрозі життю дзвоніть у швидку.</p></section>
+          <section className="bg-teal-50 p-4 rounded-xl border border-teal-100 text-teal-800"><h3 className="font-bold mb-1">Екстрена допомога</h3><p>При загрозі життю телефонуйте 112.</p></section>
         </div>
       );
     }
@@ -252,7 +268,7 @@ function App() {
       <div className="space-y-6 text-sm leading-relaxed">
         <section><h3 className="font-bold mb-2">1. Service</h3><p>TriPsy is an AI support assistant. It provides emotional support but <strong>is not a doctor</strong>.</p></section>
         <section><h3 className="font-bold mb-2">2. Privacy</h3><p>Sessions exist only in browser memory. Refreshing clears history.</p></section>
-        <section className="bg-teal-50 p-4 rounded-xl border border-teal-100 text-teal-800"><h3 className="font-bold mb-1">Emergency</h3><p>If in danger, call emergency services immediately.</p></section>
+        <section className="bg-teal-50 p-4 rounded-xl border border-teal-100 text-teal-800"><h3 className="font-bold mb-1">Emergency</h3><p>If in danger, call 112 immediately.</p></section>
       </div>
     );
   };
@@ -331,10 +347,18 @@ function App() {
                     </p>
                   </div>
 
-                  <button onClick={() => { setPrivacyTab(welcomeTab); setShowPrivacy(true); }} className="text-xs font-medium text-slate-400 hover:text-teal-600 flex items-center gap-1 transition-colors mt-4">
-                    <Lock className="w-3 h-3" />
-                    {welcomeTab === 'ua' ? "Гарантії конфіденційності" : "Privacy Guarantees"}
-                  </button>
+                  <div className="flex flex-col items-center gap-2">
+                    <button onClick={() => { setPrivacyTab(welcomeTab); setShowPrivacy(true); }} className="text-xs font-medium text-slate-400 hover:text-teal-600 flex items-center gap-1 transition-colors mt-4">
+                      <Lock className="w-3 h-3" />
+                      {welcomeTab === 'ua' ? "Гарантії конфіденційності" : "Privacy Guarantees"}
+                    </button>
+                    
+                    <p className="text-xs text-slate-500 mt-6 text-center font-medium opacity-80 max-w-[280px]">
+                      {welcomeTab === 'ua' 
+                        ? "При загрозі життю телефонуйте 112" 
+                        : "In case of life threat, call 112"}
+                    </p>
+                  </div>
                 </div>
               ) : (
                 messages.map(msg => <ChatMessage key={msg.id} message={msg} language={welcomeTab} />)
