@@ -5,19 +5,18 @@ import { User, Bot } from 'lucide-react';
 
 interface ChatMessageProps {
   message: Message;
-  language?: 'ua' | 'ru' | 'en';
+  language?: 'ua' | 'en';
 }
 
 const ChatMessage: React.FC<ChatMessageProps> = ({ message, language = 'ua' }) => {
   const isUser = message.role === 'user';
 
   // Clean the text to ensure no JSON blocks appear in the client UI
-  // This regex removes content between ```json and ``` (including the markers)
   const cleanText = isUser ? message.text : message.text.replace(/```json[\s\S]*?```/g, '').trim();
 
   return (
     <div className={`flex w-full ${isUser ? 'justify-end' : 'justify-start'} mb-6 animate-fade-in-up`}>
-      <div className={`flex max-w-[85%] md:max-w-[75%] gap-3 ${isUser ? 'flex-row-reverse' : 'flex-row'}`}>
+      <div className={`flex max-w-[90%] md:max-w-[80%] gap-3 ${isUser ? 'flex-row-reverse' : 'flex-row'}`}>
         
         {/* Avatar */}
         <div className={`flex-shrink-0 w-8 h-8 rounded-full flex items-center justify-center shadow-sm ${
@@ -30,7 +29,7 @@ const ChatMessage: React.FC<ChatMessageProps> = ({ message, language = 'ua' }) =
         <div className={`flex flex-col ${isUser ? 'items-end' : 'items-start'}`}>
           
           {/* Message Text */}
-          <div className={`px-5 py-3.5 rounded-2xl shadow-sm text-lg md:text-xl leading-relaxed ${
+          <div className={`px-5 py-3.5 rounded-2xl shadow-sm text-base md:text-lg leading-relaxed ${
             isUser 
               ? 'bg-indigo-600 text-white rounded-tr-none' 
               : 'bg-white text-slate-700 border border-slate-100 rounded-tl-none'

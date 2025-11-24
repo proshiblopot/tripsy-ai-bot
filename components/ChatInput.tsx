@@ -4,9 +4,9 @@ import { Send, Loader2, Mic, Phone, Heart } from 'lucide-react';
 interface ChatInputProps {
   onSend: (text: string) => void;
   isLoading: boolean;
-  language: 'ua' | 'ru' | 'en';
+  language: 'ua' | 'en';
   showSos: boolean;
-  sosLanguage: 'ua' | 'ru' | 'en';
+  sosLanguage: 'ua' | 'en';
 }
 
 const ChatInput: React.FC<ChatInputProps> = ({ onSend, isLoading, language, showSos, sosLanguage }) => {
@@ -17,8 +17,6 @@ const ChatInput: React.FC<ChatInputProps> = ({ onSend, isLoading, language, show
 
   const getPlaceholder = () => {
     switch (language) {
-      case 'ru':
-        return "Поделись мыслями...";
       case 'en':
         return "Share your thoughts...";
       case 'ua':
@@ -29,8 +27,6 @@ const ChatInput: React.FC<ChatInputProps> = ({ onSend, isLoading, language, show
 
   const getSosLabel = () => {
     switch (sosLanguage) {
-      case 'ru':
-        return "HELP! ПОЗВОНИТЬ";
       case 'en':
         return "HELP! CALL FOR HELP";
       case 'ua':
@@ -60,7 +56,7 @@ const ChatInput: React.FC<ChatInputProps> = ({ onSend, isLoading, language, show
     const textarea = textareaRef.current;
     if (textarea) {
       textarea.style.height = 'auto';
-      textarea.style.height = `${Math.min(textarea.scrollHeight, 150)}px`;
+      textarea.style.height = `${Math.min(textarea.scrollHeight, 120)}px`;
     }
   };
 
@@ -78,7 +74,7 @@ const ChatInput: React.FC<ChatInputProps> = ({ onSend, isLoading, language, show
     const SpeechRecognition = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
     
     if (!SpeechRecognition) {
-      alert("Voice input is not supported in this browser. Please try Chrome, Edge, or Safari.");
+      alert("Voice input is not supported in this browser.");
       return;
     }
 
@@ -86,7 +82,7 @@ const ChatInput: React.FC<ChatInputProps> = ({ onSend, isLoading, language, show
     recognition.continuous = false;
     recognition.interimResults = false;
     
-    // Strict language setting: Always listen in Ukrainian
+    // Strict Requirement: Always listen in Ukrainian regardless of UI language
     recognition.lang = 'uk-UA';
     
     recognition.onstart = () => {
@@ -115,8 +111,8 @@ const ChatInput: React.FC<ChatInputProps> = ({ onSend, isLoading, language, show
   };
 
   return (
-    <div className="bg-white p-4 border-t border-slate-100 shadow-sm z-20 relative">
-      <form onSubmit={handleSubmit} className="relative max-w-5xl mx-auto flex items-end gap-2">
+    <div className="bg-white p-3 md:p-4 border-t border-slate-100 shadow-[0_-4px_6px_-1px_rgba(0,0,0,0.05)] z-20 relative">
+      <form onSubmit={handleSubmit} className="relative max-w-2xl mx-auto flex items-end gap-2">
         <div className="relative flex-1 bg-slate-50 rounded-2xl border border-slate-200 focus-within:border-teal-500 focus-within:ring-1 focus-within:ring-teal-500 transition-all">
           <textarea
             ref={textareaRef}
@@ -124,39 +120,38 @@ const ChatInput: React.FC<ChatInputProps> = ({ onSend, isLoading, language, show
             onChange={(e) => setInput(e.target.value)}
             onKeyDown={handleKeyDown}
             placeholder={getPlaceholder()}
-            className="w-full bg-transparent pl-4 pr-12 py-3 text-lg md:text-xl text-slate-700 placeholder-slate-400 focus:outline-none resize-none min-h-[50px] max-h-[150px] overflow-y-auto rounded-2xl"
+            className="w-full bg-transparent pl-4 pr-12 py-3 text-base md:text-lg text-slate-700 placeholder-slate-400 focus:outline-none resize-none min-h-[48px] max-h-[120px] overflow-y-auto rounded-2xl"
             rows={1}
             disabled={isLoading}
           />
           
-          {/* Voice Input Button - Inside Textarea */}
+          {/* Voice Input Button */}
           <button
             type="button"
             onClick={toggleListening}
             className={`absolute right-2 bottom-2 p-2 rounded-xl transition-all duration-300 ${
               isListening
-                ? 'bg-green-100 text-green-500 animate-pulse ring-2 ring-green-200 ring-offset-1'
+                ? 'bg-green-100 text-green-600 animate-pulse ring-1 ring-green-200'
                 : 'text-slate-400 hover:text-slate-600 hover:bg-slate-200/50'
             }`}
             disabled={isLoading}
-            title="Voice Input (Українська)"
+            title="Voice Input (UA)"
           >
-            <Mic className="w-6 h-6" />
+            {/* Always show Mic icon, never Crossed Mic */}
+            <Mic className="w-5 h-5 md:w-6 md:h-6" />
           </button>
         </div>
         
-        {/* SOS Button - Visible ONLY if High/Critical Urgency */}
+        {/* SOS Button */}
         {showSos && (
            <a 
            href="tel:0800500335"
-           className="flex-shrink-0 w-[54px] h-[54px] flex items-center justify-center transition-transform hover:scale-105 active:scale-95"
+           className="flex-shrink-0 w-[48px] h-[48px] flex items-center justify-center transition-transform hover:scale-105 active:scale-95"
            title={getSosLabel()}
          >
            <div className="relative flex items-center justify-center">
-             {/* Pulsing Heart */}
-             <Heart className="w-14 h-14 text-red-600 fill-red-600 animate-pulse drop-shadow-lg" />
-             {/* Centered Phone */}
-             <Phone className="w-6 h-6 text-white absolute z-10" />
+             <Heart className="w-12 h-12 text-red-600 fill-red-600 animate-pulse drop-shadow-lg" />
+             <Phone className="w-5 h-5 text-white absolute z-10" />
            </div>
          </a>
         )}
@@ -165,16 +160,16 @@ const ChatInput: React.FC<ChatInputProps> = ({ onSend, isLoading, language, show
         <button
           type="submit"
           disabled={!input.trim() || isLoading}
-          className={`p-3 rounded-xl flex-shrink-0 transition-all duration-200 ${
+          className={`h-[48px] w-[48px] flex items-center justify-center rounded-xl flex-shrink-0 transition-all duration-200 ${
             !input.trim() || isLoading
               ? 'bg-slate-100 text-slate-400 cursor-not-allowed'
-              : 'bg-teal-600 text-white hover:bg-teal-700 shadow-md hover:shadow-lg transform hover:-translate-y-0.5'
+              : 'bg-teal-600 text-white hover:bg-teal-700 shadow-md'
           }`}
         >
           {isLoading ? (
-            <Loader2 className="w-6 h-6 animate-spin" />
+            <Loader2 className="w-5 h-5 animate-spin" />
           ) : (
-            <Send className="w-6 h-6" />
+            <Send className="w-5 h-5" />
           )}
         </button>
       </form>
