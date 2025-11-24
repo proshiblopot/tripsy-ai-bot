@@ -93,8 +93,8 @@ function App() {
   const speakText = async (text: string, langCode: string) => {
     stopAllAudio();
     
-    // Clean Markdown characters (*, #, _) for smoother TTS reading
-    const cleanText = text.replace(/[*#_]/g, '');
+    // Clean Markdown characters (*, #, _) and others for smoother TTS reading
+    const cleanText = text.replace(/[*#_`~>]/g, '').trim();
 
     if (langCode === 'ua' || langCode === 'uk') {
       speakBrowserUA(cleanText);
@@ -110,10 +110,29 @@ function App() {
     utterance.rate = 0.9;
     utterance.pitch = 1.0;
 
+    // Smart Voice Selection
+    // Filter for Ukrainian voices first
     const ukVoices = voices.filter(v => v.lang.includes('uk') || v.lang.includes('UA'));
-    const preferred = ukVoices.find(v => ["Google", "Lesya", "Milena", "UKR"].some(n => v.name.includes(n)));
-    if (preferred) utterance.voice = preferred;
-    else if (ukVoices.length > 0) utterance.voice = ukVoices[0];
+    
+    // Priorities list as requested
+    const priorities = ["Lesya", "Google", "Siri", "Premium", "Enhanced"];
+    
+    let selectedVoice = null;
+
+    // Iterate priorities to find best match
+    for (const keyword of priorities) {
+      selectedVoice = ukVoices.find(v => v.name.includes(keyword));
+      if (selectedVoice) break;
+    }
+
+    // Fallback: If no priority voice found, use the first available UK voice
+    if (!selectedVoice && ukVoices.length > 0) {
+      selectedVoice = ukVoices[0];
+    }
+
+    if (selectedVoice) {
+      utterance.voice = selectedVoice;
+    }
 
     utterance.onstart = () => setIsLoadingAudio(false);
     utterance.onend = () => setIsLoadingAudio(false);
