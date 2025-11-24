@@ -93,10 +93,13 @@ function App() {
   const speakText = async (text: string, langCode: string) => {
     stopAllAudio();
     
+    // Clean Markdown characters (*, #, _) for smoother TTS reading
+    const cleanText = text.replace(/[*#_]/g, '');
+
     if (langCode === 'ua' || langCode === 'uk') {
-      speakBrowserUA(text);
+      speakBrowserUA(cleanText);
     } else {
-      speakServerApi(text, langCode);
+      speakServerApi(cleanText, langCode);
     }
   };
 
