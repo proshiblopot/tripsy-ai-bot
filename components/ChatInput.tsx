@@ -125,21 +125,22 @@ const ChatInput: React.FC<ChatInputProps> = ({ onSend, isLoading, language, show
             disabled={isLoading}
           />
           
-          {/* Voice Input Button */}
-          <button
-            type="button"
-            onClick={toggleListening}
-            className={`absolute right-2 bottom-2 p-2 rounded-xl transition-all duration-300 ${
-              isListening
-                ? 'bg-green-100 text-green-600 animate-pulse ring-1 ring-green-200'
-                : 'text-slate-400 hover:text-slate-600 hover:bg-slate-200/50'
-            }`}
-            disabled={isLoading}
-            title="Voice Input (UA)"
-          >
-            {/* Always show Mic icon, never Crossed Mic */}
-            <Mic className="w-5 h-5 md:w-6 md:h-6" />
-          </button>
+          {/* Voice Input Button - Only show if language is UA */}
+          {language === 'ua' && (
+            <button
+              type="button"
+              onClick={toggleListening}
+              className={`absolute right-2 bottom-2 p-2 rounded-xl transition-all duration-300 ${
+                isListening
+                  ? 'bg-green-100 text-green-600 animate-pulse ring-1 ring-green-200'
+                  : 'text-slate-400 hover:text-slate-600 hover:bg-slate-200/50'
+              }`}
+              disabled={isLoading}
+              title="Voice Input (UA)"
+            >
+              <Mic className="w-5 h-5 md:w-6 md:h-6" />
+            </button>
+          )}
         </div>
         
         {/* SOS Button */}

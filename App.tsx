@@ -4,7 +4,7 @@ import { sendMessageToGemini } from './services/gemini';
 import ChatMessage from './components/ChatMessage';
 import ChatInput from './components/ChatInput';
 import TriagePanel from './components/TriagePanel';
-import { Info, X, HeartHandshake, Lock, ShieldCheck, Volume2, VolumeX, Loader2 } from 'lucide-react';
+import { Info, X, HeartHandshake, Lock, ShieldCheck, Volume2, VolumeX, Loader2, RotateCcw } from 'lucide-react';
 
 // Safe access for environment variables
 const env = (import.meta as any).env || {};
@@ -110,12 +110,12 @@ function App() {
     utterance.rate = 0.9;
     utterance.pitch = 1.0;
 
-    // Smart Voice Selection
+    // Smart Voice Selection (Upgraded)
     // Filter for Ukrainian voices first
     const ukVoices = voices.filter(v => v.lang.includes('uk') || v.lang.includes('UA'));
     
-    // Priorities list as requested
-    const priorities = ["Lesya", "Google", "Siri", "Premium", "Enhanced"];
+    // Priorities list: Google first, then Lesya, then generic UKR, then high quality markers
+    const priorities = ["Google", "Lesya", "UKR", "Siri", "Premium", "Enhanced"];
     
     let selectedVoice = null;
 
@@ -165,6 +165,12 @@ function App() {
   };
 
   // --- Interaction Handlers ---
+
+  const handleResetChat = () => {
+    stopAllAudio();
+    setMessages([]);
+    setLatestTriage(null);
+  };
 
   const handleVoiceToggle = () => {
     const newState = !isAutoVoiceEnabled;
@@ -246,9 +252,20 @@ function App() {
           </div>
         </div>
         <div className="flex items-center gap-2">
+          {/* Reset Chat Button */}
+          <button 
+            onClick={handleResetChat}
+            className="p-2 rounded-full bg-slate-50 text-slate-400 hover:text-teal-600 hover:bg-teal-50 transition-all border border-transparent hover:border-teal-100"
+            title="Reset Chat"
+          >
+            <RotateCcw className="w-5 h-5" />
+          </button>
+
+          {/* Voice Toggle Button */}
           <button onClick={handleVoiceToggle} className={`p-2 rounded-full border transition-all ${isAutoVoiceEnabled ? 'bg-teal-100 text-teal-700 border-teal-200' : 'bg-slate-50 text-slate-400 border-transparent'}`}>
             {isLoadingAudio ? <Loader2 className="w-5 h-5 animate-spin text-teal-600" /> : isAutoVoiceEnabled ? <Volume2 className="w-5 h-5" /> : <VolumeX className="w-5 h-5" />}
           </button>
+          
           {isExpertMode && (
             <button className="lg:hidden p-2 text-slate-500" onClick={() => setShowMobileTriage(!showMobileTriage)}>
               <Info className="w-5 h-5" />
