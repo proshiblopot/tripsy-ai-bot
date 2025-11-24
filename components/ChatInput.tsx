@@ -1,12 +1,12 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { Send, Loader2, Mic, MicOff, Phone, Heart } from 'lucide-react';
+import { Send, Loader2, Mic, Phone, Heart } from 'lucide-react';
 
 interface ChatInputProps {
   onSend: (text: string) => void;
   isLoading: boolean;
-  language: 'ua' | 'en';
+  language: 'ua' | 'ru' | 'en';
   showSos: boolean;
-  sosLanguage: 'ua' | 'en';
+  sosLanguage: 'ua' | 'ru' | 'en';
 }
 
 const ChatInput: React.FC<ChatInputProps> = ({ onSend, isLoading, language, showSos, sosLanguage }) => {
@@ -17,6 +17,8 @@ const ChatInput: React.FC<ChatInputProps> = ({ onSend, isLoading, language, show
 
   const getPlaceholder = () => {
     switch (language) {
+      case 'ru':
+        return "Поделись мыслями...";
       case 'en':
         return "Share your thoughts...";
       case 'ua':
@@ -27,6 +29,8 @@ const ChatInput: React.FC<ChatInputProps> = ({ onSend, isLoading, language, show
 
   const getSosLabel = () => {
     switch (sosLanguage) {
+      case 'ru':
+        return "HELP! ПОЗВОНИТЬ";
       case 'en':
         return "HELP! CALL FOR HELP";
       case 'ua':
@@ -81,8 +85,9 @@ const ChatInput: React.FC<ChatInputProps> = ({ onSend, isLoading, language, show
     const recognition = new SpeechRecognition();
     recognition.continuous = false;
     recognition.interimResults = false;
-    // Set recognition language based on the selected interface language
-    recognition.lang = language === 'ua' ? 'uk-UA' : 'en-US';
+    
+    // Strict language setting: Always listen in Ukrainian
+    recognition.lang = 'uk-UA';
     
     recognition.onstart = () => {
       setIsListening(true);
@@ -128,15 +133,15 @@ const ChatInput: React.FC<ChatInputProps> = ({ onSend, isLoading, language, show
           <button
             type="button"
             onClick={toggleListening}
-            className={`absolute right-2 bottom-2 p-2 rounded-xl transition-all duration-200 hover:bg-slate-200/50 ${
+            className={`absolute right-2 bottom-2 p-2 rounded-xl transition-all duration-300 ${
               isListening
-                ? 'text-red-600 animate-pulse'
-                : 'text-slate-400 hover:text-slate-600'
+                ? 'bg-green-100 text-green-500 animate-pulse ring-2 ring-green-200 ring-offset-1'
+                : 'text-slate-400 hover:text-slate-600 hover:bg-slate-200/50'
             }`}
             disabled={isLoading}
-            title="Voice Input"
+            title="Voice Input (Українська)"
           >
-            {isListening ? <MicOff className="w-6 h-6" /> : <Mic className="w-6 h-6" />}
+            <Mic className="w-6 h-6" />
           </button>
         </div>
         

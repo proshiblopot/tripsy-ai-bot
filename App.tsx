@@ -28,7 +28,7 @@ function App() {
     return false;
   });
   
-  // Default language set to Ukrainian ('ua'), only 'en' as alternative
+  // Default language set to Ukrainian ('ua')
   const [privacyTab, setPrivacyTab] = useState<'ua' | 'en'>('ua');
   const [welcomeTab, setWelcomeTab] = useState<'ua' | 'en'>('ua');
   
@@ -95,7 +95,7 @@ function App() {
     if (lastMsg && lastMsg.role === 'model' && lastMsg.id !== lastSpokenMessageIdRef.current) {
       lastSpokenMessageIdRef.current = lastMsg.id;
       
-      // Determine language code
+      // Determine language code: 'ua', or 'en'
       const langCode = latestTriage?.language || welcomeTab;
       
       speakText(lastMsg.text, langCode);
@@ -106,22 +106,22 @@ function App() {
   const speakText = async (text: string, langCode: string) => {
     stopAllAudio();
     
-    // Updated Logic:
-    // 1. If English -> Use Server API ('en')
-    // 2. All other cases (including Russian inputs which bot answers in UA) -> Use Browser Native with 'uk-UA'
-    if (langCode === 'en') {
-      speakServerApi(text, 'en');
-    } else {
+    // Check if language is Ukrainian
+    if (langCode === 'ua' || langCode === 'uk') {
+      // Use Browser Native for Ukrainian
       speakBrowserUA(text);
+    } else {
+      // Use Server API for others (EN)
+      speakServerApi(text, langCode);
     }
   };
 
-  // 1. Browser-native TTS for Ukrainian (and fallback for others)
+  // 1. Browser-native TTS for Ukrainian
   const speakBrowserUA = (text: string) => {
     setIsLoadingAudio(true); // Show spinner briefly while setting up
 
     const utterance = new SpeechSynthesisUtterance(text);
-    utterance.lang = 'uk-UA'; // Force Ukrainian locale
+    utterance.lang = 'uk-UA';
     utterance.rate = 0.9;
     utterance.pitch = 1.0;
 
@@ -151,7 +151,7 @@ function App() {
     window.speechSynthesis.speak(utterance);
   };
 
-  // 2. Server API TTS for English
+  // 2. Server API TTS for Other Languages
   const speakServerApi = async (text: string, langCode: string) => {
     setIsLoadingAudio(true);
     
@@ -359,168 +359,159 @@ function App() {
   };
 
   return (
-    // Changed h-screen to h-[100dvh] for mobile browsers
-    <div className="flex flex-col h-[100dvh] w-full overflow-hidden bg-teal-50/50">
+    <div className="flex h-screen overflow-hidden bg-teal-50/50">
       
-      {/* Main Content Container (Flex Row if sidebar exists, otherwise just content) */}
-      <div className="flex-1 flex overflow-hidden relative">
+      {/* Main Content Area */}
+      <div className="flex-1 flex flex-col h-full relative">
         
-        {/* Chat Column */}
-        <div className="flex-1 flex flex-col h-full w-full relative">
-          
-          {/* Header - Fixed Height, No Sticky needed in Flex col */}
-          <header className="flex-none bg-white/80 backdrop-blur-md border-b border-slate-200 px-4 md:px-6 py-4 flex items-center justify-between z-10">
-            <div 
-              className="flex items-center gap-3 cursor-pointer hover:opacity-80 transition-opacity"
-              onClick={() => window.location.reload()}
-              title="Reload Chat"
-            >
-              <div className="bg-teal-100 p-2 rounded-xl">
-                <HeartHandshake className="w-6 h-6 text-teal-600" />
-              </div>
-              <div>
-                <h1 className="text-xl font-bold text-slate-800 tracking-tight">TriPsy</h1>
-                <p className="text-sm md:text-base text-slate-500 font-medium">{getHeaderSubtitle()}</p>
-              </div>
-            </div>
-            
-            <div className="flex items-center gap-3">
-              {/* Auto-Voice Toggle Button */}
-              <button
-                onClick={handleVoiceToggle}
-                className={`p-2 rounded-full transition-all duration-200 border ${
-                  isAutoVoiceEnabled 
-                    ? 'bg-teal-100 text-teal-700 border-teal-200 shadow-sm' 
-                    : 'bg-slate-50 text-slate-400 border-transparent hover:bg-slate-100'
-                }`}
-                title={isAutoVoiceEnabled ? "Turn Text-to-Speech OFF" : "Turn Text-to-Speech ON"}
-                disabled={isLoadingAudio}
-              >
-                {isLoadingAudio ? (
-                  <Loader2 className="w-6 h-6 animate-spin text-teal-600" />
-                ) : (
-                  isAutoVoiceEnabled ? <Volume2 className="w-6 h-6" /> : <VolumeX className="w-6 h-6" />
-                )}
-              </button>
-
-              {/* Only show info button in Expert Mode */}
-              {isExpertMode && (
-                <button 
-                  className="lg:hidden p-2 text-slate-500 hover:bg-slate-100 rounded-full"
-                  onClick={() => setShowMobileTriage(!showMobileTriage)}
-                >
-                  <Info className="w-6 h-6" />
-                </button>
-              )}
-            </div>
-          </header>
-
-          {/* Chat List - Scrollable Area */}
+        {/* Header */}
+        <header className="bg-white/80 backdrop-blur-md border-b border-slate-200 px-6 py-4 flex items-center justify-between z-10 sticky top-0">
           <div 
-            ref={chatContainerRef}
-            className="flex-1 overflow-y-auto w-full p-4 md:p-6 scroll-smooth"
+            className="flex items-center gap-3 cursor-pointer hover:opacity-80 transition-opacity"
+            onClick={() => window.location.reload()}
+            title="Reload Chat"
           >
-            <div className="max-w-3xl mx-auto min-h-full">
-              {messages.length === 0 ? (
-                <div className="flex flex-col items-center justify-center h-full text-center space-y-6 animate-fade-in py-8">
-                  <div className="w-20 h-20 bg-teal-100 rounded-full flex items-center justify-center shadow-sm mb-2">
-                     <HeartHandshake className="w-10 h-10 text-teal-600" />
-                  </div>
-
-                  {/* Welcome Language Tabs */}
-                  <div className="flex p-1 bg-slate-200/60 rounded-xl mb-4">
-                    <button 
-                      onClick={() => setWelcomeTab('ua')}
-                      className={`px-4 py-1.5 text-xl font-semibold rounded-lg transition-all ${
-                        welcomeTab === 'ua' 
-                          ? 'bg-white text-teal-700 shadow-sm' 
-                          : 'text-slate-500 hover:text-slate-700 hover:bg-white/50'
-                      }`}
-                      title="Українська"
-                    >
-                      🇺🇦
-                    </button>
-                    <button 
-                      onClick={() => setWelcomeTab('en')}
-                      className={`px-4 py-1.5 text-xl font-semibold rounded-lg transition-all ${
-                        welcomeTab === 'en' 
-                          ? 'bg-white text-teal-700 shadow-sm' 
-                          : 'text-slate-500 hover:text-slate-700 hover:bg-white/50'
-                      }`}
-                      title="English"
-                    >
-                      🇬🇧
-                    </button>
-                  </div>
-                  
-                  <div className="space-y-3 max-w-xl min-h-[80px] flex flex-col justify-center px-4">
-                    {welcomeTab === 'ua' && (
-                      <div className="space-y-2 animate-fade-in">
-                        <p className="text-xl md:text-2xl font-bold text-slate-800">Вітаю! Мене звати TriPsy.</p>
-                        <p className="text-lg md:text-xl text-slate-600 leading-relaxed">Я — ШІ-чат первинної психологічної підтримки. Поділіться зі мною своїми думками.</p>
-                      </div>
-                    )}
-
-                    {welcomeTab === 'en' && (
-                      <div className="space-y-2 animate-fade-in">
-                        <p className="text-xl md:text-2xl font-bold text-slate-800">Hello! My name is TriPsy.</p>
-                        <p className="text-lg md:text-xl text-slate-600 leading-relaxed">I am an AI initial psychological support chat. Share your thoughts with me.</p>
-                      </div>
-                    )}
-                  </div>
-
-                  <div className="pt-4 pb-8">
-                    <button 
-                      onClick={() => {
-                        setPrivacyTab(welcomeTab);
-                        setShowPrivacy(true);
-                      }}
-                      className="group text-sm font-medium text-slate-500 bg-white px-4 py-2 rounded-full border border-slate-200 shadow-sm inline-flex items-center gap-2 hover:border-teal-300 hover:text-teal-700 hover:shadow-md transition-all cursor-pointer"
-                    >
-                      <Lock className="w-4 h-4 text-teal-500 group-hover:text-teal-600" />
-                      <span>{getConfidentialityText()}</span>
-                    </button>
-                  </div>
-                </div>
-              ) : (
-                <>
-                  {messages.map(msg => (
-                    <ChatMessage key={msg.id} message={msg} language={welcomeTab} />
-                  ))}
-                  {isLoading && (
-                    <div className="flex justify-start mb-6 pl-12">
-                      <div className="bg-slate-100 rounded-2xl rounded-tl-none px-4 py-3 flex items-center gap-2">
-                         <div className="w-2 h-2 bg-slate-400 rounded-full animate-bounce" style={{ animationDelay: '0ms' }} />
-                         <div className="w-2 h-2 bg-slate-400 rounded-full animate-bounce" style={{ animationDelay: '150ms' }} />
-                         <div className="w-2 h-2 bg-slate-400 rounded-full animate-bounce" style={{ animationDelay: '300ms' }} />
-                      </div>
-                    </div>
-                  )}
-                  <div className="h-4" /> {/* Spacer */}
-                </>
-              )}
+            <div className="bg-teal-100 p-2 rounded-xl">
+              <HeartHandshake className="w-6 h-6 text-teal-600" />
+            </div>
+            <div>
+              <h1 className="text-xl font-bold text-slate-800 tracking-tight">TriPsy</h1>
+              <p className="text-sm md:text-base text-slate-500 font-medium">{getHeaderSubtitle()}</p>
             </div>
           </div>
+          
+          <div className="flex items-center gap-3">
+            {/* Auto-Voice Toggle Button */}
+            <button
+              onClick={handleVoiceToggle}
+              className={`p-2 rounded-full transition-all duration-200 border ${
+                isAutoVoiceEnabled 
+                  ? 'bg-teal-100 text-teal-700 border-teal-200 shadow-sm' 
+                  : 'bg-slate-50 text-slate-400 border-transparent hover:bg-slate-100'
+              }`}
+              title={isAutoVoiceEnabled ? "Turn Text-to-Speech OFF" : "Turn Text-to-Speech ON"}
+              disabled={isLoadingAudio}
+            >
+              {isLoadingAudio ? (
+                <Loader2 className="w-6 h-6 animate-spin text-teal-600" />
+              ) : (
+                isAutoVoiceEnabled ? <Volume2 className="w-6 h-6" /> : <VolumeX className="w-6 h-6" />
+              )}
+            </button>
 
-          {/* Input Area - Fixed at bottom via Flex Column */}
-          <div className="flex-none w-full bg-white z-20">
-            <ChatInput 
-              onSend={handleSendMessage} 
-              isLoading={isLoading} 
-              language={welcomeTab} 
-              showSos={showSos} 
-              sosLanguage={sosLanguage} 
-            />
+            {/* Only show info button in Expert Mode (or if needed for both, but request says clean UI for clients) */}
+            {isExpertMode && (
+              <button 
+                className="lg:hidden p-2 text-slate-500 hover:bg-slate-100 rounded-full"
+                onClick={() => setShowMobileTriage(!showMobileTriage)}
+              >
+                <Info className="w-6 h-6" />
+              </button>
+            )}
+          </div>
+        </header>
+
+        {/* Chat Area */}
+        <div 
+          ref={chatContainerRef}
+          className="flex-1 overflow-y-auto p-4 md:p-6 scroll-smooth"
+        >
+          <div className="max-w-3xl mx-auto h-full">
+            {messages.length === 0 ? (
+              <div className="flex flex-col items-center justify-center min-h-[60vh] text-center space-y-6 animate-fade-in py-8">
+                <div className="w-20 h-20 bg-teal-100 rounded-full flex items-center justify-center shadow-sm mb-2">
+                   <HeartHandshake className="w-10 h-10 text-teal-600" />
+                </div>
+
+                {/* Welcome Language Tabs */}
+                <div className="flex p-1 bg-slate-200/60 rounded-xl mb-4">
+                  <button 
+                    onClick={() => setWelcomeTab('ua')}
+                    className={`px-4 py-1.5 rounded-lg transition-all flex items-center gap-2 ${
+                      welcomeTab === 'ua' 
+                        ? 'bg-white shadow-sm' 
+                        : 'hover:bg-slate-100/50'
+                    }`}
+                    title="Українська"
+                  >
+                    <span className="text-lg">🇺🇦</span>
+                  </button>
+                  <button 
+                    onClick={() => setWelcomeTab('en')}
+                    className={`px-4 py-1.5 rounded-lg transition-all flex items-center gap-2 ${
+                      welcomeTab === 'en' 
+                        ? 'bg-white shadow-sm' 
+                        : 'hover:bg-slate-100/50'
+                    }`}
+                    title="English"
+                  >
+                    <span className="text-lg">🇬🇧</span>
+                  </button>
+                </div>
+                
+                <div className="space-y-3 max-w-xl min-h-[80px] flex flex-col justify-center">
+                  {welcomeTab === 'ua' && (
+                    <div className="space-y-2 animate-fade-in">
+                      <p className="text-xl md:text-2xl font-bold text-slate-800">Вітаю! Мене звати TriPsy.</p>
+                      <p className="text-lg md:text-xl text-slate-600 leading-relaxed">Я — ШІ-чат первинної психологічної підтримки. Поділіться зі мною своїми думками.</p>
+                    </div>
+                  )}
+
+                  {welcomeTab === 'en' && (
+                    <div className="space-y-2 animate-fade-in">
+                      <p className="text-xl md:text-2xl font-bold text-slate-800">Hello! My name is TriPsy.</p>
+                      <p className="text-lg md:text-xl text-slate-600 leading-relaxed">I am an AI initial psychological support chat. Share your thoughts with me.</p>
+                    </div>
+                  )}
+                </div>
+
+                <div className="pt-4">
+                  <button 
+                    onClick={() => {
+                      setPrivacyTab(welcomeTab);
+                      setShowPrivacy(true);
+                    }}
+                    className="group text-sm font-medium text-slate-500 bg-white px-4 py-2 rounded-full border border-slate-200 shadow-sm inline-flex items-center gap-2 hover:border-teal-300 hover:text-teal-700 hover:shadow-md transition-all cursor-pointer"
+                  >
+                    <Lock className="w-4 h-4 text-teal-500 group-hover:text-teal-600" />
+                    <span>{getConfidentialityText()}</span>
+                  </button>
+                </div>
+              </div>
+            ) : (
+              messages.map(msg => (
+                <ChatMessage key={msg.id} message={msg} language={welcomeTab} />
+              ))
+            )}
+            {isLoading && (
+              <div className="flex justify-start mb-6 pl-12">
+                <div className="bg-slate-100 rounded-2xl rounded-tl-none px-4 py-3 flex items-center gap-2">
+                   <div className="w-2 h-2 bg-slate-400 rounded-full animate-bounce" style={{ animationDelay: '0ms' }} />
+                   <div className="w-2 h-2 bg-slate-400 rounded-full animate-bounce" style={{ animationDelay: '150ms' }} />
+                   <div className="w-2 h-2 bg-slate-400 rounded-full animate-bounce" style={{ animationDelay: '300ms' }} />
+                </div>
+              </div>
+            )}
+            <div className="h-4" /> {/* Spacer */}
           </div>
         </div>
 
-        {/* Desktop Triage Sidebar - Expert Mode Only */}
-        {isExpertMode && (
-          <div className="hidden lg:block w-80 xl:w-96 p-4 border-l border-slate-200 bg-white/50 backdrop-blur-sm h-full overflow-hidden flex-none">
-            <TriagePanel data={latestTriage} />
-          </div>
-        )}
+        {/* Input Area */}
+        <ChatInput 
+          onSend={handleSendMessage} 
+          isLoading={isLoading} 
+          language={welcomeTab} 
+          showSos={showSos} 
+          sosLanguage={sosLanguage} 
+        />
       </div>
+
+      {/* Desktop Triage Sidebar - Expert Mode Only */}
+      {isExpertMode && (
+        <div className="hidden lg:block w-80 xl:w-96 p-4 border-l border-slate-200 bg-white/50 backdrop-blur-sm h-full overflow-hidden">
+          <TriagePanel data={latestTriage} />
+        </div>
+      )}
 
       {/* Mobile Triage Overlay - Expert Mode Only */}
       {showMobileTriage && isExpertMode && (
@@ -561,25 +552,23 @@ function App() {
               <div className="flex p-1 bg-slate-200/60 rounded-lg">
                 <button 
                   onClick={() => setPrivacyTab('ua')}
-                  className={`px-3 py-1 text-base rounded-md transition-all ${
+                  className={`px-3 py-1.5 rounded-md transition-all flex items-center gap-2 ${
                     privacyTab === 'ua' 
                       ? 'bg-white shadow-sm' 
-                      : 'hover:bg-white/50'
+                      : 'hover:bg-slate-100/50'
                   }`}
-                  title="Українська"
                 >
-                  🇺🇦
+                  <span className="text-lg">🇺🇦</span>
                 </button>
                 <button 
                   onClick={() => setPrivacyTab('en')}
-                  className={`px-3 py-1 text-base rounded-md transition-all ${
+                  className={`px-3 py-1.5 rounded-md transition-all flex items-center gap-2 ${
                     privacyTab === 'en' 
                       ? 'bg-white shadow-sm' 
-                      : 'hover:bg-white/50'
+                      : 'hover:bg-slate-100/50'
                   }`}
-                  title="English"
                 >
-                  🇬🇧
+                  <span className="text-lg">🇬🇧</span>
                 </button>
               </div>
 

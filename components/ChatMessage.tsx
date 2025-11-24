@@ -5,7 +5,7 @@ import { User, Bot } from 'lucide-react';
 
 interface ChatMessageProps {
   message: Message;
-  language?: 'ua' | 'en';
+  language?: 'ua' | 'ru' | 'en';
 }
 
 const ChatMessage: React.FC<ChatMessageProps> = ({ message, language = 'ua' }) => {
