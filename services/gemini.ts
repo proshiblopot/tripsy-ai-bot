@@ -57,7 +57,8 @@ export const sendMessageToGemini = async (
   }));
 
   try {
-    const model = "gemini-2.5-flash";
+    // Switched to Gemini 3 Pro for better instruction following and reasoning
+    const model = "gemini-3-pro-preview";
     
     const response = await ai.models.generateContent({
       model: model,
@@ -67,7 +68,7 @@ export const sendMessageToGemini = async (
       ],
       config: {
         systemInstruction: SYSTEM_INSTRUCTION,
-        temperature: 0.7, // Slightly lower for more consistent following of protocol
+        temperature: 0.1, // Minimal temperature for maximum strictness and safety
       }
     });
 
