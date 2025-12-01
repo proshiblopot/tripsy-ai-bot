@@ -32,32 +32,24 @@ export const sendMessageToGemini = async (
   newMessage: string
 ): Promise<{ text: string; triage: TriageData | null }> => {
   
-  // Use safe access pattern for environment variables to prevent crashes
-  // if import.meta.env is undefined in specific runtime environments
-  const env = (import.meta as any).env || {};
-  const apiKey = env.VITE_GOOGLE_API_KEY;
-
+  // RESTORED TO EXACT SCREENSHOT STATE FOR VERCEL COMPATIBILITY
+  const apiKey = (import.meta as any).env.VITE_GOOGLE_API_KEY;
+  
   if (!apiKey) {
-    console.error("Google API Key is missing in Environment Variables");
-    return {
-      text: "System Error: API Key is missing. Please check your VITE_GOOGLE_API_KEY configuration.",
-      triage: null
-    };
+    console.error("CRITICAL ERROR: API Key is missing.");
+    throw new Error("API Key is missing. Please configure VITE_GOOGLE_API_KEY.");
   }
 
-  // Initialize the client INSIDE the function to avoid "API Key must be set" errors 
-  // during initial page load or if the key is missing.
   const ai = new GoogleGenAI({ apiKey });
 
   // Format history for Gemini API
-  // Note: Gemini requires alternating user/model turns.
   const chatHistory = history.map(msg => ({
     role: msg.role,
     parts: [{ text: msg.text }], 
   }));
 
   try {
-    // Switched to Gemini 3 Pro for better instruction following and reasoning
+    // Model is set to PRO as requested
     const model = "gemini-3-pro-preview";
     
     const response = await ai.models.generateContent({
@@ -68,7 +60,7 @@ export const sendMessageToGemini = async (
       ],
       config: {
         systemInstruction: SYSTEM_INSTRUCTION,
-        temperature: 0.1, // Minimal temperature for maximum strictness and safety
+        temperature: 0.1, 
       }
     });
 
