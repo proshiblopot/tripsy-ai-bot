@@ -48,24 +48,49 @@ export const sendMessageToGemini = async (
     parts: [{ text: msg.text }], 
   }));
 
-  try {
-    // Model is set to PRO as requested
-    const model = "gemini-3-pro-preview";
-    
-    const response = await ai.models.generateContent({
-      model: model,
-      contents: [
-        ...chatHistory,
-        { role: 'user', parts: [{ text: newMessage }] }
-      ],
-      config: {
-        systemInstruction: SYSTEM_INSTRUCTION,
-        temperature: 0.1, 
-      }
-    });
+  const contents = [
+    ...chatHistory,
+    { role: 'user', parts: [{ text: newMessage }] }
+  ];
 
-    const responseText = response.text || "";
-    return parseResponse(responseText);
+  const config = {
+    systemInstruction: SYSTEM_INSTRUCTION,
+    temperature: 0.1, 
+  };
+
+  try {
+    // Strategy: Try PRO model first (User preference). 
+    // If Quota limit (429) is hit, fallback to FLASH to ensure service continuity.
+    try {
+      const response = await ai.models.generateContent({
+        model: "gemini-3-pro-preview",
+        contents,
+        config
+      });
+      return parseResponse(response.text || "");
+    } catch (primaryError: any) {
+      // Check specifically for Quota Exceeded (429)
+      const isQuotaError = 
+        primaryError.toString().includes('429') || 
+        primaryError.message?.includes('429') || 
+        primaryError.status === 429 ||
+        primaryError.toString().includes('RESOURCE_EXHAUSTED');
+
+      if (isQuotaError) {
+        console.warn("Gemini Pro Quota Exceeded (429). Recovering with Flash model.");
+        
+        // Fallback to Flash which has much higher limits
+        const response = await ai.models.generateContent({
+          model: "gemini-2.5-flash",
+          contents,
+          config
+        });
+        return parseResponse(response.text || "");
+      }
+      
+      // If it's another type of error, throw it up
+      throw primaryError;
+    }
 
   } catch (error) {
     console.error("Gemini API Error:", error);
