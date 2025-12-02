@@ -1,6 +1,6 @@
 import React from 'react';
 import { TriageData, Urgency } from '../types';
-import { Activity, AlertTriangle, CheckCircle, Brain, Tag, ShieldAlert, Cpu } from 'lucide-react';
+import { Activity, AlertTriangle, CheckCircle, Brain, Tag, ShieldAlert } from 'lucide-react';
 
 interface TriagePanelProps {
   data: TriageData | null;
@@ -36,9 +36,18 @@ const TriagePanel: React.FC<TriagePanelProps> = ({ data }) => {
 
   return (
     <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden h-full flex flex-col">
-      <div className="bg-slate-50 px-4 py-3 border-b border-slate-100 flex items-center gap-2">
-        <Activity className="w-4 h-4 text-teal-600" />
-        <h3 className="font-semibold text-slate-700 text-sm uppercase tracking-wider">Live Triage Analysis</h3>
+      <div className="bg-slate-50 px-4 py-3 border-b border-slate-100">
+        <div className="flex items-center gap-2">
+          <Activity className="w-4 h-4 text-teal-600" />
+          <h3 className="font-semibold text-slate-700 text-sm uppercase tracking-wider">Live Triage Analysis</h3>
+        </div>
+        {/* Model info moved here under the header */}
+        {data.modelUsed && (
+          <div className="ml-6 mt-0.5 flex items-center gap-1">
+            <span className="text-[10px] text-slate-400 lowercase">current model:</span>
+            <span className="text-[10px] font-mono font-bold text-slate-600">{data.modelUsed}</span>
+          </div>
+        )}
       </div>
       
       <div className="p-5 space-y-6 overflow-y-auto flex-1">
@@ -84,15 +93,6 @@ const TriagePanel: React.FC<TriagePanelProps> = ({ data }) => {
               <span className="text-slate-400 text-sm italic">No keywords flagged</span>
             )}
           </div>
-        </div>
-
-        {/* Active Model - Expert Info */}
-        <div className="space-y-2 pt-2 border-t border-slate-100">
-           <span className="text-[10px] font-medium text-slate-400 uppercase tracking-widest">Active Model</span>
-           <div className="flex items-center gap-2 text-xs font-mono text-slate-500 bg-slate-50 px-2 py-1 rounded border border-slate-100 w-fit">
-             <Cpu className="w-3 h-3" />
-             {data.modelUsed || "Unknown"}
-           </div>
         </div>
 
       </div>
