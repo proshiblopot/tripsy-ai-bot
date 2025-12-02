@@ -1,6 +1,6 @@
 import React from 'react';
 import { TriageData, Urgency } from '../types';
-import { Activity, AlertTriangle, CheckCircle, Brain, Tag, ShieldAlert } from 'lucide-react';
+import { Activity, AlertTriangle, CheckCircle, Brain, Tag, ShieldAlert, Cpu } from 'lucide-react';
 
 interface TriagePanelProps {
   data: TriageData | null;
@@ -85,6 +85,16 @@ const TriagePanel: React.FC<TriagePanelProps> = ({ data }) => {
             )}
           </div>
         </div>
+
+        {/* Active Model - Expert Info */}
+        <div className="space-y-2 pt-2 border-t border-slate-100">
+           <span className="text-[10px] font-medium text-slate-400 uppercase tracking-widest">Active Model</span>
+           <div className="flex items-center gap-2 text-xs font-mono text-slate-500 bg-slate-50 px-2 py-1 rounded border border-slate-100 w-fit">
+             <Cpu className="w-3 h-3" />
+             {data.modelUsed || "Unknown"}
+           </div>
+        </div>
+
       </div>
       
       <div className="p-4 bg-slate-50 border-t border-slate-100 text-xs text-slate-400 text-center">

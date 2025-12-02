@@ -236,7 +236,15 @@ function App() {
         timestamp: new Date(),
         triage: response.triage || undefined
       };
-      if (response.triage) setLatestTriage(response.triage);
+      
+      // Update triage with the model used
+      if (response.triage) {
+        setLatestTriage({
+          ...response.triage,
+          modelUsed: response.modelUsed
+        });
+      }
+      
       setMessages(prev => [...prev, botMsg]);
     } catch (error) {
       setMessages(prev => [...prev, {

@@ -30,9 +30,9 @@ function parseResponse(rawText: string): { text: string; triage: TriageData | nu
 export const sendMessageToGemini = async (
   history: Message[], 
   newMessage: string
-): Promise<{ text: string; triage: TriageData | null }> => {
+): Promise<{ text: string; triage: TriageData | null; modelUsed: string }> => {
   
-  // RESTORED TO EXACT SCREENSHOT STATE FOR VERCEL COMPATIBILITY
+  // EXACT API KEY INITIALIZATION AS REQUESTED (Vercel Compatibility)
   const apiKey = (import.meta as any).env.VITE_GOOGLE_API_KEY;
   
   if (!apiKey) {
@@ -55,45 +55,61 @@ export const sendMessageToGemini = async (
 
   const config = {
     systemInstruction: SYSTEM_INSTRUCTION,
-    temperature: 0.1, 
+    // VERIFIED: Temperature 0.3 provides a balance of empathy and adherence to strict protocols
+    temperature: 0.3, 
   };
 
-  try {
-    // Strategy: Try PRO model first (User preference). 
-    // If Quota limit (429) is hit, fallback to FLASH to ensure service continuity.
+  // PRIORITY SEQUENCE FOR FALLBACKS
+  // 1. Gemini 3.0 Pro (Best Quality)
+  // 2. Gemini 2.0 Thinking (Deep Reasoning)
+  // 3. Gemini 2.0 Pro (High Tier Fallback)
+  // 4. Gemini 2.5 Flash (High Availability/Speed)
+  const modelSequence = [
+    "gemini-3-pro-preview",
+    "gemini-2.0-flash-thinking-exp-01-21",
+    "gemini-2.0-pro-exp-02-05",
+    "gemini-2.5-flash"
+  ];
+
+  let lastError: any = null;
+
+  for (const model of modelSequence) {
     try {
       const response = await ai.models.generateContent({
-        model: "gemini-3-pro-preview",
+        model,
         contents,
         config
       });
-      return parseResponse(response.text || "");
-    } catch (primaryError: any) {
+      
+      // If successful, parse and return immediately with the model name
+      const parsed = parseResponse(response.text || "");
+      return { 
+        ...parsed, 
+        modelUsed: model 
+      };
+
+    } catch (error: any) {
+      lastError = error;
+
       // Check specifically for Quota Exceeded (429)
       const isQuotaError = 
-        primaryError.toString().includes('429') || 
-        primaryError.message?.includes('429') || 
-        primaryError.status === 429 ||
-        primaryError.toString().includes('RESOURCE_EXHAUSTED');
+        error.toString().includes('429') || 
+        error.message?.includes('429') || 
+        error.status === 429 ||
+        error.toString().includes('RESOURCE_EXHAUSTED');
 
       if (isQuotaError) {
-        console.warn("Gemini Pro Quota Exceeded (429). Recovering with Flash model.");
-        
-        // Fallback to Flash which has much higher limits
-        const response = await ai.models.generateContent({
-          model: "gemini-2.5-flash",
-          contents,
-          config
-        });
-        return parseResponse(response.text || "");
+        console.warn(`Model ${model} exhausted (429). Switching to next model...`);
+        // Continue loop to try next model
+        continue;
       }
       
-      // If it's another type of error, throw it up
-      throw primaryError;
+      // If it's NOT a quota error (e.g., safety block, network fail), stop trying and throw
+      console.error(`Gemini Error on model ${model}:`, error);
+      throw error;
     }
-
-  } catch (error) {
-    console.error("Gemini API Error:", error);
-    throw error;
   }
+
+  // If loop finishes and no model worked
+  throw lastError || new Error("All models failed to respond.");
 };

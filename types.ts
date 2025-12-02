@@ -11,6 +11,7 @@ export interface TriageData {
   suggested_action: string;
   flagged_keywords: string[];
   language: 'ua' | 'en';
+  modelUsed?: string; // Field to track which Gemini model generated the response
 }
 
 export interface Message {
