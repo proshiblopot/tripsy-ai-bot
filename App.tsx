@@ -4,7 +4,7 @@ import { sendMessageToGemini } from './services/gemini';
 import ChatMessage from './components/ChatMessage';
 import ChatInput from './components/ChatInput';
 import TriagePanel from './components/TriagePanel';
-import { Info, X, HeartHandshake, Lock, ShieldCheck, Volume2, VolumeX, Loader2, RotateCcw } from 'lucide-react';
+import { Info, X, HeartHandshake, Lock, ShieldCheck, Volume2, VolumeX, Loader2, RotateCcw, Download } from 'lucide-react';
 
 // Safe access for environment variables
 const env = (import.meta as any).env || {};
@@ -177,36 +177,52 @@ function App() {
     window.speechSynthesis.speak(utterance);
   };
 
-  const speakServerApi = async (text: string, langCode: string) => {
-    // Fallback method kept for reference, but currently unused in favor of speakNative
-    setIsLoadingAudio(true);
-    try {
-      const response = await fetch("/api/tts", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ text, lang: langCode }),
-      });
-      if (!response.ok) throw new Error("API Error");
-      
-      const blob = await response.blob();
-      const url = URL.createObjectURL(blob);
-      const audio = new Audio(url);
-      audioRef.current = audio;
-      
-      audio.onended = () => { setIsLoadingAudio(false); URL.revokeObjectURL(url); };
-      await audio.play();
-    } catch (e) {
-      console.error(e);
-      setIsLoadingAudio(false);
-    }
-  };
-
   // --- Interaction Handlers ---
 
   const handleResetChat = () => {
     stopAllAudio();
     setMessages([]);
     setLatestTriage(null);
+  };
+
+  const handleDownloadHistory = () => {
+    if (messages.length === 0) return;
+
+    const timestamp = new Date().toLocaleString('uk-UA').replace(/[\/:]/g, '-').replace(', ', '_');
+    const filename = `TriPsy_Session_${timestamp}.txt`;
+
+    let content = `=== TRIPSY SESSION REPORT ===\n`;
+    content += `Date: ${new Date().toLocaleString()}\n`;
+    content += `Session Language: ${welcomeTab.toUpperCase()}\n`;
+    
+    if (latestTriage) {
+      content += `\n--- FINAL DIAGNOSTIC DATA ---\n`;
+      content += `Urgency: ${latestTriage.urgency}\n`;
+      content += `Topic: ${latestTriage.topic}\n`;
+      content += `Model Used: ${latestTriage.modelUsed || 'Unknown'}\n`;
+      content += `Suggested Action: ${latestTriage.suggested_action}\n`;
+      content += `Keywords: ${latestTriage.flagged_keywords?.join(', ') || 'None'}\n`;
+    }
+
+    content += `\n--- TRANSCRIPT ---\n\n`;
+
+    messages.forEach(msg => {
+      const role = msg.role === 'user' ? 'USER' : 'BOT';
+      const time = msg.timestamp.toLocaleTimeString();
+      content += `[${time}] ${role}:\n${msg.text}\n\n`;
+    });
+
+    content += `\n=== END OF REPORT ===\n`;
+
+    const blob = new window.Blob([content], { type: 'text/plain' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = filename;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
   };
 
   const handleVoiceToggle = () => {
@@ -217,6 +233,27 @@ function App() {
         ? "Вітаю! Мене звати TriPsy. Я — ШІ-чат первинної психологічної підтримки. Поділіться зі мною своїми думками."
         : "Hello! My name is TriPsy. I am an AI initial psychological support chat. Share your thoughts with me.";
       speakText(text);
+    }
+  };
+
+  // --- LOGGING SERVICE ---
+  const logInteraction = async (userText: string, botResponse: any) => {
+    // Fire and forget - do not await
+    try {
+      fetch('/api/log', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          userText,
+          botResponse: botResponse.text,
+          triage: botResponse.triage,
+          modelUsed: botResponse.modelUsed,
+          timestamp: new Date().toISOString(),
+          language: welcomeTab // Added language to log
+        })
+      }).catch(err => console.error("Logging failed silently:", err));
+    } catch (e) {
+      // Ignore errors to prevent UI disruption
     }
   };
 
@@ -246,6 +283,10 @@ function App() {
       }
       
       setMessages(prev => [...prev, botMsg]);
+
+      // --- TRIGGER LOGGING ---
+      logInteraction(text, response);
+
     } catch (error) {
       setMessages(prev => [...prev, {
         id: Date.now().toString(),
@@ -297,6 +338,17 @@ function App() {
           </div>
         </div>
         <div className="flex items-center gap-2">
+          {/* Download Session Button */}
+          {messages.length > 0 && (
+            <button 
+              onClick={handleDownloadHistory}
+              className="p-2 rounded-full bg-slate-50 text-slate-500 hover:text-teal-600 hover:bg-teal-50 transition-all border border-transparent hover:border-teal-100"
+              title={welcomeTab === 'ua' ? "Зберегти звіт" : "Download Report"}
+            >
+              <Download className="w-5 h-5" />
+            </button>
+          )}
+
           {/* Reset Chat Button */}
           <button 
             onClick={handleResetChat}
