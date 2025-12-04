@@ -61,13 +61,15 @@ export const sendMessageToGemini = async (
 
   // PRIORITY SEQUENCE FOR FALLBACKS
   // 1. Gemini 3.0 Pro (Best Quality)
-  // 2. Gemini 2.0 Thinking (Deep Reasoning)
+  // 2. Gemini 2.0 Thinking (Deep Reasoning) - Removed specific date suffix to avoid 404s
   // 3. Gemini 2.0 Pro (High Tier Fallback)
-  // 4. Gemini 2.5 Flash (High Availability/Speed)
+  // 4. Gemini 2.5 Pro (Requested addition)
+  // 5. Gemini 2.5 Flash (High Availability/Speed)
   const modelSequence = [
     "gemini-3-pro-preview",
-    "gemini-2.0-flash-thinking-exp-01-21",
+    "gemini-2.0-flash-thinking-exp",
     "gemini-2.0-pro-exp-02-05",
+    "gemini-2.5-pro-preview",
     "gemini-2.5-flash"
   ];
 
@@ -91,20 +93,27 @@ export const sendMessageToGemini = async (
     } catch (error: any) {
       lastError = error;
 
-      // Check specifically for Quota Exceeded (429)
-      const isQuotaError = 
+      // Check for:
+      // 1. Quota Exceeded (429 / RESOURCE_EXHAUSTED)
+      // 2. Model Not Found (404 / NOT_FOUND) - This was causing the crash
+      // 3. Service Unavailable (503)
+      const isRetryableError = 
         error.toString().includes('429') || 
         error.message?.includes('429') || 
         error.status === 429 ||
-        error.toString().includes('RESOURCE_EXHAUSTED');
+        error.toString().includes('RESOURCE_EXHAUSTED') ||
+        error.status === 404 ||
+        error.message?.includes('NOT_FOUND') ||
+        error.toString().includes('404') ||
+        error.status === 503;
 
-      if (isQuotaError) {
-        console.warn(`Model ${model} exhausted (429). Switching to next model...`);
+      if (isRetryableError) {
+        console.warn(`Model ${model} failed (Status: ${error.status || 'Unknown'}). Switching to next model...`);
         // Continue loop to try next model
         continue;
       }
       
-      // If it's NOT a quota error (e.g., safety block, network fail), stop trying and throw
+      // If it's NOT a retryable error (e.g., safety block, invalid key), stop trying and throw
       console.error(`Gemini Error on model ${model}:`, error);
       throw error;
     }
