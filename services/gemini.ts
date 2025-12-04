@@ -59,17 +59,11 @@ export const sendMessageToGemini = async (
     temperature: 0.3, 
   };
 
-  // PRIORITY SEQUENCE FOR FALLBACKS
-  // 1. Gemini 3.0 Pro (Best Quality)
-  // 2. Gemini 2.0 Thinking (Deep Reasoning) - Removed specific date suffix to avoid 404s
-  // 3. Gemini 2.0 Pro (High Tier Fallback)
-  // 4. Gemini 2.5 Pro (Requested addition)
-  // 5. Gemini 2.5 Flash (High Availability/Speed)
+  // CUSTOM MODEL SEQUENCE FOR TESTING (User Defined)
   const modelSequence = [
-    "gemini-3-pro-preview",
-    "gemini-2.0-flash-thinking-exp",
-    "gemini-2.0-pro-exp-02-05",
-    "gemini-2.5-pro-preview",
+    "gemini-3.0-deep-think",
+    "gemini-3.0-pro",
+    "gemini-2.5-pro",
     "gemini-2.5-flash"
   ];
 
@@ -77,12 +71,17 @@ export const sendMessageToGemini = async (
 
   for (const model of modelSequence) {
     try {
+      // Log which model we are trying (helpful for expert mode debugging)
+      console.log(`[Gemini] Requesting with model: ${model}`);
+
       const response = await ai.models.generateContent({
         model,
         contents,
         config
       });
       
+      console.log(`[Gemini] Success with model: ${model}`);
+
       // If successful, parse and return immediately with the model name
       const parsed = parseResponse(response.text || "");
       return { 
@@ -93,10 +92,8 @@ export const sendMessageToGemini = async (
     } catch (error: any) {
       lastError = error;
 
-      // Check for:
-      // 1. Quota Exceeded (429 / RESOURCE_EXHAUSTED)
-      // 2. Model Not Found (404 / NOT_FOUND) - This was causing the crash
-      // 3. Service Unavailable (503)
+      // Check for retryable errors:
+      // 429 (Quota), 404 (Model Not Found), 503 (Service Unavailable)
       const isRetryableError = 
         error.toString().includes('429') || 
         error.message?.includes('429') || 
