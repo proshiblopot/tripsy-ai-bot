@@ -53,16 +53,17 @@ export const sendMessageToGemini = async (
     { role: 'user', parts: [{ text: newMessage }] }
   ];
 
-  const config = {
+  const config: any = {
     systemInstruction: SYSTEM_INSTRUCTION,
     // VERIFIED: Temperature 0.3 provides a balance of empathy and adherence to strict protocols
-    temperature: 0.3, 
+    temperature: 0.3,
+    // Custom parameter requested by user
+    thinking_level: "high" 
   };
 
   // CUSTOM MODEL SEQUENCE FOR TESTING (User Defined)
   const modelSequence = [
-    "gemini-3.0-deep-think",
-    "gemini-3.0-pro",
+    "gemini-3-pro",
     "gemini-2.5-pro",
     "gemini-2.5-flash"
   ];
