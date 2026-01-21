@@ -19,9 +19,6 @@ function parseResponse(rawText: string): { text: string; triage: TriageData | nu
   return { text: rawText, triage: null };
 }
 
-/**
- * Використовуємо рекомендовану модель для базових текстових завдань.
- */
 const MODEL_NAME = 'gemini-3-flash-preview';
 
 export const sendMessageToGemini = async (
@@ -30,19 +27,20 @@ export const sendMessageToGemini = async (
 ): Promise<{ text: string; triage: TriageData | null; modelUsed: string }> => {
   
   /**
-   * Спроба отримати ключ з різних джерел:
-   * 1. process.env.API_KEY - стандарт для інжектованих ключів у цьому середовищі.
-   * 2. import.meta.env.VITE_API_KEY - стандарт для Vite.
+   * Отримання ключа:
+   * 1. В першу чергу шукаємо VITE_GOOGLE_API_KEY (як ви вказали).
+   * 2. Fallback на API_KEY (для внутрішніх тестів AI Studio).
    */
-  const apiKey = (process.env as any).API_KEY || (import.meta as any).env?.VITE_API_KEY;
+  const env = (import.meta as any).env;
+  const apiKey = env?.VITE_GOOGLE_API_KEY || (process.env as any)?.API_KEY;
 
   if (!apiKey) {
-    console.error("API Key not found in process.env or import.meta.env");
+    console.error("CRITICAL: API Key not found. Ensure VITE_GOOGLE_API_KEY is set in Vercel.");
     throw new Error("API_KEY_MISSING");
   }
 
-  // Ініціалізуємо SDK безпосередньо перед використанням згідно з правилами
-  const ai = new GoogleGenAI({ apiKey });
+  // Створюємо клієнт з іменованим параметром apiKey
+  const ai = new GoogleGenAI({ apiKey: apiKey });
 
   const formattedContents = history.slice(-10).map(msg => ({
     role: msg.role === 'model' ? 'model' : 'user',
@@ -63,12 +61,13 @@ export const sendMessageToGemini = async (
       },
     });
 
+    // Використовуємо властивість .text (не метод) згідно з документацією
     const text = response.text;
     if (!text) throw new Error("EMPTY_RESPONSE");
 
     const parsed = parseResponse(text);
 
-    // Логування в Telegram (не блокує основний інтерфейс)
+    // Логування в Telegram
     fetch('/api/log', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -87,7 +86,7 @@ export const sendMessageToGemini = async (
     };
 
   } catch (error: any) {
-    console.error("Gemini API Error Detail:", error);
+    console.error("Gemini API Error:", error);
     throw error;
   }
 };
