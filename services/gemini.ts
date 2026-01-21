@@ -21,15 +21,15 @@ function parseResponse(rawText: string): { text: string; triage: TriageData | nu
 }
 
 /**
- * Оновлена ієрархія для уникнення лімітів (429) та помилок відсутності моделей (404):
- * 1. gemini-1.5-flash-latest - стабільна, високі ліміти.
- * 2. gemini-3-flash-preview - нова, швидка, але низькі ліміти.
- * 3. gemini-1.5-pro-latest - потужна, низькі ліміти.
+ * Ієрархія моделей для забезпечення безперебійної роботи:
+ * 1. gemini-1.5-flash - стабільна, високі ліміти.
+ * 2. gemini-2.0-flash-exp - швидка (experimental).
+ * 3. gemini-1.5-pro - потужна.
  */
 const MODEL_HIERARCHY = [
-  'gemini-1.5-flash-latest',
-  'gemini-3-flash-preview',
-  'gemini-1.5-pro-latest'
+  'gemini-1.5-flash',
+  'gemini-2.0-flash-exp',
+  'gemini-1.5-pro'
 ];
 
 export const sendMessageToGemini = async (
@@ -38,30 +38,25 @@ export const sendMessageToGemini = async (
   modelIndex = 0
 ): Promise<{ text: string; triage: TriageData | null; modelUsed: string }> => {
   
-  let apiKey = "";
-  try {
-    // @ts-ignore
-    apiKey = import.meta.env?.VITE_GOOGLE_API_KEY || 
-             // @ts-ignore
-             import.meta.env?.VITE_API_KEY || 
-             (process.env as any)?.VITE_GOOGLE_API_KEY ||
-             process.env.API_KEY;
-  } catch (e) {}
+  // Vercel та більшість середовищ збірки використовують process.env для ін'єкції ключів.
+  // В AI Studio середовищі ключ доступний саме через process.env.API_KEY.
+  const apiKey = process.env.API_KEY;
 
   if (!apiKey) {
-    throw new Error("API Key is missing. Check your environment variables.");
+    throw new Error("API Key is missing. Ensure process.env.API_KEY is defined in your environment.");
   }
 
   const modelName = MODEL_HIERARCHY[modelIndex] || MODEL_HIERARCHY[0];
+  
+  // Створюємо екземпляр згідно з правилами: new GoogleGenAI({ apiKey: process.env.API_KEY })
   const ai = new GoogleGenAI({ apiKey });
 
-  const formattedContents = [
-    ...history.slice(-10).map(msg => ({
-      role: msg.role === 'model' ? 'model' : 'user',
-      parts: [{ text: msg.text }]
-    })),
-    { role: 'user', parts: [{ text: newMessage }] }
-  ];
+  const formattedContents = history.slice(-6).map(msg => ({
+    role: msg.role === 'model' ? 'model' : 'user',
+    parts: [{ text: msg.text }]
+  }));
+  
+  formattedContents.push({ role: 'user', parts: [{ text: newMessage }] });
 
   try {
     const response = await ai.models.generateContent({
@@ -73,12 +68,12 @@ export const sendMessageToGemini = async (
       },
     });
 
-    const responseText = response.text;
-    if (!responseText) throw new Error("Empty response");
+    const text = response.text;
+    if (!text) throw new Error("Empty response from model");
 
-    const parsed = parseResponse(responseText);
+    const parsed = parseResponse(text);
 
-    // Логування
+    // Логування (асинхронно)
     fetch('/api/log', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -97,10 +92,11 @@ export const sendMessageToGemini = async (
     };
 
   } catch (error: any) {
-    console.error(`Error with model ${modelName}:`, error);
+    console.error(`Gemini Error (${modelName}):`, error);
     
-    // Якщо помилка 429 або 404 — перемикаємося на наступну модель
+    // Перемикання на наступну модель при 429 (ліміти) або 404 (недоступність)
     if (modelIndex < MODEL_HIERARCHY.length - 1) {
+      console.warn(`Attempting fallback to ${MODEL_HIERARCHY[modelIndex + 1]}`);
       return sendMessageToGemini(history, newMessage, modelIndex + 1);
     }
     
