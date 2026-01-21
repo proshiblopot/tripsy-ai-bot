@@ -55,7 +55,7 @@ export const sendMessageToGemini = async (
   const currentModel = MODELS_HIERARCHY[modelIndex];
   if (!currentModel) throw new Error("ALL_MODELS_FAILED");
 
-  // Ініціалізація клієнта безпосередньо перед викликом
+  // Ініціалізація клієнта безпосередньо перед викликом з правильним об'єктом конфігурації
   const ai = new GoogleGenAI({ apiKey });
 
   const formattedContents = history.slice(-6).map(msg => ({
@@ -89,7 +89,7 @@ export const sendMessageToGemini = async (
        return sendMessageToGemini(history, newMessage, modelIndex + 1);
     }
 
-    // Логування
+    // Логування (асинхронно)
     fetch('/api/log', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
