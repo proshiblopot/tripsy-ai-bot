@@ -3,6 +3,16 @@ import { GoogleGenAI } from "@google/genai";
 import { Message, TriageData } from "../types";
 import { SYSTEM_INSTRUCTION } from "../constants";
 
+// Список моделей у порядку пріоритету для перевірки лімітів
+const MODELS_HIERARCHY = [
+  'gemini-3-pro-preview',
+  'gemini-3-flash-preview',
+  'gemini-2.0-pro-exp-02-05',
+  'gemini-2.0-flash-exp',
+  'gemini-1.5-pro-latest',
+  'gemini-1.5-flash-latest'
+];
+
 function parseResponse(rawText: string): { text: string; triage: TriageData | null } {
   const jsonBlockRegex = /```json\s*([\s\S]*?)\s*```$/;
   const match = rawText.match(jsonBlockRegex);
@@ -20,27 +30,24 @@ function parseResponse(rawText: string): { text: string; triage: TriageData | nu
   return { text: rawText, triage: null };
 }
 
-const MODEL_NAME = 'gemini-3-flash-preview';
-
 export const sendMessageToGemini = async (
   history: Message[], 
-  newMessage: string
+  newMessage: string,
+  modelIndex: number = 0
 ): Promise<{ text: string; triage: TriageData | null; modelUsed: string }> => {
   
-  // FIX: Use process.env.API_KEY as per guidelines. 
-  // The environment variable is assumed to be available in the execution context.
-  const apiKey = process.env.API_KEY;
+  // Універсальний спосіб отримання ключа: Vercel (VITE_) або Sandbox (process.env)
+  const apiKey = (import.meta as any).env?.VITE_GOOGLE_API_KEY || process.env.API_KEY;
 
   if (!apiKey) {
-    console.error("process.env.API_KEY is not defined");
     throw new Error("API_KEY_MISSING");
   }
 
-  // FIX: Always use new GoogleGenAI({apiKey: process.env.API_KEY});
+  const currentModel = MODELS_HIERARCHY[modelIndex];
   const ai = new GoogleGenAI({ apiKey });
 
-  // Formatting history for the contents array
-  const formattedContents = history.slice(-5).map(msg => ({
+  // Формування історії (останні 4 повідомлення для економії токенів)
+  const formattedContents = history.slice(-4).map(msg => ({
     role: msg.role === 'model' ? 'model' : 'user',
     parts: [{ text: msg.text }]
   }));
@@ -48,10 +55,8 @@ export const sendMessageToGemini = async (
   formattedContents.push({ role: 'user', parts: [{ text: newMessage }] });
 
   try {
-    // FIX: Use ai.models.generateContent directly. 
-    // Do not use model.generateContent or getGenerativeModel.
     const response = await ai.models.generateContent({
-      model: MODEL_NAME,
+      model: currentModel,
       contents: formattedContents,
       config: {
         systemInstruction: SYSTEM_INSTRUCTION,
@@ -59,13 +64,12 @@ export const sendMessageToGemini = async (
       },
     });
 
-    // FIX: Access .text property directly (not a method).
     const text = response.text;
     if (!text) throw new Error("EMPTY_RESPONSE");
 
     const parsed = parseResponse(text);
 
-    // Логування (API Route)
+    // Логування успішного запиту
     fetch('/api/log', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -73,21 +77,31 @@ export const sendMessageToGemini = async (
         userText: newMessage,
         botResponse: parsed.text,
         triage: parsed.triage,
-        modelUsed: MODEL_NAME,
+        modelUsed: currentModel,
         timestamp: new Date().toISOString()
       })
     }).catch(() => {});
 
     return { 
       ...parsed, 
-      modelUsed: MODEL_NAME 
+      modelUsed: currentModel 
     };
 
   } catch (error: any) {
-    console.error("Gemini API Error:", error);
-    
-    // Перевірка на Quota Exceeded (429)
-    if (error.message?.includes('429') || error.status === 429) {
+    console.warn(`Model ${currentModel} failed:`, error.message);
+
+    const isRateLimit = error.message?.includes('429') || 
+                        error.status === 429 || 
+                        error.message?.includes('RESOURCE_EXHAUSTED');
+
+    // Якщо це помилка ліміту і є наступна модель у списку - пробуємо її
+    if (isRateLimit && modelIndex < MODELS_HIERARCHY.length - 1) {
+      console.log(`Switching to fallback model: ${MODELS_HIERARCHY[modelIndex + 1]}`);
+      return sendMessageToGemini(history, newMessage, modelIndex + 1);
+    }
+
+    // Якщо ліміти вичерпані всюди або інша помилка
+    if (isRateLimit) {
       throw new Error("RATE_LIMIT_EXCEEDED");
     }
     
