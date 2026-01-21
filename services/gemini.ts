@@ -26,12 +26,13 @@ function parseResponse(rawText: string): { text: string; triage: TriageData | nu
 
 /**
  * Model Hierarchy: 3 Pro -> 3 Flash -> 1.5 Pro -> 1.5 Flash.
+ * Note: Added '-latest' to 1.5 models to ensure compatibility with the current API version.
  */
 const MODEL_HIERARCHY = [
   'gemini-3-pro-preview',
   'gemini-3-flash-preview',
-  'gemini-1.5-pro',
-  'gemini-1.5-flash'
+  'gemini-1.5-pro-latest',
+  'gemini-1.5-flash-latest'
 ];
 
 export const sendMessageToGemini = async (
@@ -40,7 +41,7 @@ export const sendMessageToGemini = async (
   modelIndex = 0
 ): Promise<{ text: string; triage: TriageData | null; modelUsed: string }> => {
   
-  // Strict integration using the specific env variable access requested
+  // Direct integration using the key via import.meta.env as requested
   const apiKey = (import.meta as any).env.VITE_GOOGLE_API_KEY;
   if (!apiKey) {
     throw new Error("VITE_GOOGLE_API_KEY is not defined.");
@@ -50,7 +51,7 @@ export const sendMessageToGemini = async (
   const modelName = MODEL_HIERARCHY[modelIndex];
 
   if (!modelName) {
-    throw new Error("Requested models are currently unavailable.");
+    throw new Error("Specified models in hierarchy are exhausted.");
   }
 
   const trimmedHistory = history.slice(-12); 
