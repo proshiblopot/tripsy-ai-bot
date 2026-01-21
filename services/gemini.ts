@@ -7,6 +7,8 @@ import { SYSTEM_INSTRUCTION } from "../constants";
 const MODELS_HIERARCHY = [
   'gemini-3-pro-preview',
   'gemini-3-flash-preview',
+  'gemini-2.5-pro-preview',
+  'gemini-2.5-flash-preview',
   'gemini-flash-lite-latest'
 ];
 
