@@ -1,13 +1,18 @@
-
 import { GoogleGenAI } from "@google/genai";
 import { Message, TriageData } from "../types";
 import { SYSTEM_INSTRUCTION } from "../constants";
 
-// Updated model list according to the guidelines for Gemini 3 and 2.5 series
+/**
+ * Пріоритет моделей згідно з вашим запитом.
+ * Використовуються актуальні назви для Gemini 3 та 2.5 серій.
+ */
 const MODELS_HIERARCHY = [
-  'gemini-3-pro-preview',
-  'gemini-3-flash-preview',
-  'gemini-flash-lite-latest'
+  'gemini-3-pro-preview',        // 3 Pro
+  'gemini-3-flash-preview',      // 3 Flash
+  'gemini-2.5-pro-preview',      // 2.5 Pro (замість 2 Pro)
+  'gemini-2.5-flash-preview-09-2025', // 2.5 Flash (замість 2 Flash)
+  'gemini-3-pro-preview',        // 1.5 Pro (оновлено до 3 Pro)
+  'gemini-3-flash-preview'       // 1.5 Flash (оновлено до 3 Flash)
 ];
 
 function parseResponse(rawText: string): { text: string; triage: TriageData | null } {
@@ -33,23 +38,16 @@ export const sendMessageToGemini = async (
   modelIndex: number = 0
 ): Promise<{ text: string; triage: TriageData | null; modelUsed: string }> => {
   
-  /**
-   * Vite specific environment variable access.
-   * Prefixed with VITE_ to be exposed to the client-side bundle.
-   */
   const apiKey = (import.meta as any).env.VITE_GOOGLE_API_KEY;
 
   if (!apiKey) {
-    console.error("VITE_GOOGLE_API_KEY is missing from environment variables.");
+    console.error("VITE_GOOGLE_API_KEY is missing.");
     throw new Error("API_KEY_MISSING");
   }
 
   const currentModel = MODELS_HIERARCHY[modelIndex] || 'gemini-3-flash-preview';
-  
-  // Initialize with named parameter { apiKey }
   const ai = new GoogleGenAI({ apiKey });
 
-  // Prepare chat contents history
   const formattedContents = history.slice(-10).map(msg => ({
     role: msg.role === 'model' ? 'model' : 'user',
     parts: [{ text: msg.text }]
@@ -58,23 +56,26 @@ export const sendMessageToGemini = async (
   formattedContents.push({ role: 'user', parts: [{ text: newMessage }] });
 
   try {
-    // Calling generateContent with current model and formatted contents
+    const isPro = currentModel.includes('pro');
+    
     const response = await ai.models.generateContent({
       model: currentModel,
       contents: formattedContents.map(c => ({ role: c.role as any, parts: c.parts })),
       config: {
         systemInstruction: SYSTEM_INSTRUCTION,
         temperature: 0.7,
+        // Включення "мислення" (Thinking Config)
+        thinkingConfig: { 
+          thinkingBudget: isPro ? 32768 : 24576 
+        }
       },
     });
 
-    // Access the .text property (getter) directly as per guidelines
     const text = response.text;
     if (!text) throw new Error("EMPTY_RESPONSE");
 
     const parsed = parseResponse(text);
 
-    // Logging to internal monitoring
     fetch('/api/log', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -95,16 +96,16 @@ export const sendMessageToGemini = async (
   } catch (error: any) {
     console.warn(`Model ${currentModel} error:`, error);
 
-    const isRateLimit = error.message?.includes('429') || 
+    const isRetryable = error.message?.includes('429') || 
                         error.status === 429 || 
-                        error.message?.includes('RESOURCE_EXHAUSTED');
+                        error.message?.includes('RESOURCE_EXHAUSTED') ||
+                        error.message?.includes('500');
 
-    // Fallback logic for free tier limits
-    if (isRateLimit && modelIndex < MODELS_HIERARCHY.length - 1) {
+    if (isRetryable && modelIndex < MODELS_HIERARCHY.length - 1) {
       return sendMessageToGemini(history, newMessage, modelIndex + 1);
     }
 
-    if (isRateLimit) throw new Error("RATE_LIMIT_EXCEEDED");
+    if (isRetryable) throw new Error("RATE_LIMIT_EXCEEDED");
     throw error;
   }
 };
