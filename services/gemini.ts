@@ -3,16 +3,16 @@ import { Message, TriageData } from "../types";
 import { SYSTEM_INSTRUCTION } from "../constants";
 
 /**
- * Пріоритет моделей згідно з вашим запитом.
- * Використовуються актуальні назви для Gemini 3 та 2.5 серій.
+ * Пріоритет моделей згідно з вашим запитом:
+ * 3 Pro -> 3 Flash -> 2.5 Pro -> 2.5 Flash -> 1.5 Pro (mapped to 3) -> 1.5 Flash (mapped to 3)
  */
 const MODELS_HIERARCHY = [
-  'gemini-3-pro-preview',        // 3 Pro
-  'gemini-3-flash-preview',      // 3 Flash
-  'gemini-2.5-pro-preview',      // 2.5 Pro (замість 2 Pro)
-  'gemini-2.5-flash-preview-09-2025', // 2.5 Flash (замість 2 Flash)
-  'gemini-3-pro-preview',        // 1.5 Pro (оновлено до 3 Pro)
-  'gemini-3-flash-preview'       // 1.5 Flash (оновлено до 3 Flash)
+  'gemini-3-pro-preview',             // 3 Pro
+  'gemini-3-flash-preview',           // 3 Flash
+  'gemini-2.5-pro-preview',           // 2.5 Pro
+  'gemini-2.5-flash-preview-09-2025', // 2.5 Flash
+  'gemini-3-pro-preview',             // Fallback to 3 Pro
+  'gemini-3-flash-preview'            // Fallback to 3 Flash
 ];
 
 function parseResponse(rawText: string): { text: string; triage: TriageData | null } {
@@ -58,15 +58,20 @@ export const sendMessageToGemini = async (
   try {
     const isPro = currentModel.includes('pro');
     
+    // Встановлюємо бюджети для мислення
+    // Для стабільності обов'язково вказуємо maxOutputTokens
+    const thinkingBudget = isPro ? 8000 : 4000;
+    const maxOutputTokens = thinkingBudget + 4000; // Резервуємо 4к токенів на саму відповідь
+
     const response = await ai.models.generateContent({
       model: currentModel,
       contents: formattedContents.map(c => ({ role: c.role as any, parts: c.parts })),
       config: {
         systemInstruction: SYSTEM_INSTRUCTION,
         temperature: 0.7,
-        // Включення "мислення" (Thinking Config)
+        maxOutputTokens: maxOutputTokens,
         thinkingConfig: { 
-          thinkingBudget: isPro ? 32768 : 24576 
+          thinkingBudget: thinkingBudget 
         }
       },
     });
@@ -76,6 +81,7 @@ export const sendMessageToGemini = async (
 
     const parsed = parseResponse(text);
 
+    // Логування
     fetch('/api/log', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -94,12 +100,13 @@ export const sendMessageToGemini = async (
     };
 
   } catch (error: any) {
-    console.warn(`Model ${currentModel} error:`, error);
+    console.warn(`Model ${currentModel} error (attempt ${modelIndex + 1}):`, error);
 
     const isRetryable = error.message?.includes('429') || 
                         error.status === 429 || 
                         error.message?.includes('RESOURCE_EXHAUSTED') ||
-                        error.message?.includes('500');
+                        error.message?.includes('500') ||
+                        error.message?.includes('quota');
 
     if (isRetryable && modelIndex < MODELS_HIERARCHY.length - 1) {
       return sendMessageToGemini(history, newMessage, modelIndex + 1);
