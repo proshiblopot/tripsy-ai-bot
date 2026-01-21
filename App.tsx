@@ -1,4 +1,3 @@
-
 import { useState, useRef, useEffect } from 'react';
 import { Message, TriageData } from './types';
 import { sendMessageToGemini } from './services/gemini';
@@ -120,12 +119,12 @@ function App() {
       
       if (error.message === "API_KEY_MISSING") {
         errorText = welcomeTab === 'ua' 
-          ? "Критична помилка: API ключ не знайдено у змінних оточення Vercel. Перевірте назву API_KEY або VITE_API_KEY."
-          : "Critical Error: API Key not found in Vercel env vars. Check API_KEY or VITE_API_KEY.";
+          ? "Помилка: API ключ не знайдено. Переконайтеся, що VITE_API_KEY додано у налаштуваннях Vercel."
+          : "Error: API Key missing. Ensure VITE_API_KEY is set in Vercel settings.";
       } else {
         errorText = welcomeTab === 'ua' 
-          ? "Помилка зв'язку з AI (404/429). Спробуйте пізніше або перевірте налаштування моделі." 
-          : "AI Connection Error (404/429). Please try later or check model settings.";
+          ? "Виникла помилка під час запиту до AI. Будь ласка, спробуйте ще раз." 
+          : "An error occurred during the AI request. Please try again.";
       }
       
       setMessages(prev => [...prev, {
