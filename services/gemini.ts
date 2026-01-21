@@ -25,13 +25,13 @@ function parseResponse(rawText: string): { text: string; triage: TriageData | nu
 }
 
 /**
- * Model Hierarchy: 3 Pro -> 3 Flash -> 1.5 Pro -> 1.5 Flash.
+ * Model Hierarchy: Standard names to avoid 404 issues in specific regions/SDK versions.
  */
 const MODEL_HIERARCHY = [
-  'gemini-3-pro-preview',
-  'gemini-3-flash-preview',
   'gemini-1.5-pro',
-  'gemini-1.5-flash'
+  'gemini-1.5-flash',
+  'gemini-pro',
+  'gemini-flash'
 ];
 
 export const sendMessageToGemini = async (
@@ -40,7 +40,7 @@ export const sendMessageToGemini = async (
   modelIndex = 0
 ): Promise<{ text: string; triage: TriageData | null; modelUsed: string }> => {
   
-  // Strict integration using the specific env variable access requested
+  // Use the exact environment variable access requested
   const apiKey = (import.meta as any).env.VITE_GOOGLE_API_KEY;
   if (!apiKey) {
     throw new Error("VITE_GOOGLE_API_KEY is not defined.");
@@ -54,32 +54,33 @@ export const sendMessageToGemini = async (
     throw new Error("All models in hierarchy exhausted.");
   }
 
-  // Get the specific model from hierarchy
-  const model = genAI.getGenerativeModel({ 
-    model: modelName,
-    generationConfig: {
-      temperature: 0.3,
-      topP: 0.95,
-    },
-    systemInstruction: SYSTEM_INSTRUCTION
-  });
-
-  const trimmedHistory = history.slice(-12); 
-  const formattedContents = [
-    ...trimmedHistory.map(msg => ({
-      role: msg.role === 'model' ? 'model' : 'user',
-      parts: [{ text: msg.text }]
-    })),
-    { role: 'user', parts: [{ text: newMessage }] }
-  ];
-
   try {
-    // Using the classic generateContent pattern that worked before
+    // Get the specific model from hierarchy
+    const model = genAI.getGenerativeModel({ 
+      model: modelName,
+      generationConfig: {
+        temperature: 0.3,
+        topP: 0.95,
+      },
+      systemInstruction: SYSTEM_INSTRUCTION
+    });
+
+    const trimmedHistory = history.slice(-12); 
+    const formattedContents = [
+      ...trimmedHistory.map(msg => ({
+        role: msg.role === 'model' ? 'model' : 'user',
+        parts: [{ text: msg.text }]
+      })),
+      { role: 'user', parts: [{ text: newMessage }] }
+    ];
+
+    // Using the classic generateContent pattern
     const result = await model.generateContent({
       contents: formattedContents,
     });
 
-    const responseText = result.response.text(); // Note: version-specific check, but .text() is standard for this pattern
+    // Access the text using the standard property or method based on SDK version
+    const responseText = result.response.text(); 
     if (!responseText) throw new Error("Empty model response");
 
     const parsed = parseResponse(responseText);
@@ -91,6 +92,7 @@ export const sendMessageToGemini = async (
   } catch (error: any) {
     console.warn(`Model ${modelName} failed. Reason: ${error.message}. Trying next in hierarchy...`);
     
+    // Recursive retry with the next model if available
     if (modelIndex < MODEL_HIERARCHY.length - 1) {
       return sendMessageToGemini(history, newMessage, modelIndex + 1);
     }
