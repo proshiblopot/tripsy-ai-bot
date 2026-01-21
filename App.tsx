@@ -1,4 +1,5 @@
-import React, { useState, useRef, useEffect } from 'react';
+
+import { useState, useRef, useEffect } from 'react';
 import { Message, TriageData } from './types';
 import { sendMessageToGemini } from './services/gemini';
 import ChatMessage from './components/ChatMessage';
@@ -338,8 +339,8 @@ function App() {
           </div>
         </div>
         <div className="flex items-center gap-2">
-          {/* Download Session Button */}
-          {messages.length > 0 && (
+          {/* Download Session Button - ONLY IN EXPERT MODE */}
+          {isExpertMode && messages.length > 0 && (
             <button 
               onClick={handleDownloadHistory}
               className="p-2 rounded-full bg-slate-50 text-slate-500 hover:text-teal-600 hover:bg-teal-50 transition-all border border-transparent hover:border-teal-100"
