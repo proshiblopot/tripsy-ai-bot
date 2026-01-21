@@ -104,12 +104,6 @@ function App() {
     setIsLoading(true);
 
     try {
-      // Перевірка наявності ключа. Пріоритет VITE_GOOGLE_API_KEY як у gemini.ts
-      const key = (import.meta as any).env?.VITE_GOOGLE_API_KEY || process.env.API_KEY;
-      if (!key) {
-         throw new Error("API Key (VITE_GOOGLE_API_KEY) is missing");
-      }
-
       const response = await sendMessageToGemini(messages, text);
       const botMsg: Message = {
         id: (Date.now() + 1).toString(),
@@ -122,9 +116,17 @@ function App() {
       setMessages(prev => [...prev, botMsg]);
     } catch (error: any) {
       console.error("App: Message error", error);
-      let errorText = welcomeTab === 'ua' 
-        ? "Помилка зв'язку з AI. Будь ласка, переконайтеся, що VITE_GOOGLE_API_KEY встановлено правильно." 
-        : "AI Connection Error. Please ensure VITE_GOOGLE_API_KEY is correctly set.";
+      let errorText = "";
+      
+      if (error.message?.includes("API Key is missing")) {
+        errorText = welcomeTab === 'ua' 
+          ? "Критична помилка: API ключ не знайдено. Будь ласка, додайте VITE_GOOGLE_API_KEY в налаштуваннях Vercel."
+          : "Critical Error: API Key not found. Please add VITE_GOOGLE_API_KEY to Vercel settings.";
+      } else {
+        errorText = welcomeTab === 'ua' 
+          ? "Помилка зв'язку з AI. Спробуйте ще раз або перевірте ліміти API." 
+          : "AI Connection Error. Please try again or check API quotas.";
+      }
       
       setMessages(prev => [...prev, {
         id: Date.now().toString(),

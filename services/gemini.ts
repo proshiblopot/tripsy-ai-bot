@@ -39,9 +39,14 @@ export const sendMessageToGemini = async (
   modelIndex = 0
 ): Promise<{ text: string; triage: TriageData | null; modelUsed: string }> => {
   
-  // Використовуємо саме той ключ, який ви вказали як правильний
-  const apiKey = (import.meta as any).env.VITE_GOOGLE_API_KEY || process.env.API_KEY;
-  if (!apiKey) throw new Error("API Key is missing (VITE_GOOGLE_API_KEY).");
+  // Спроба отримати ключ з різних можливих джерел у Vercel/Vite
+  const env = (import.meta as any).env || {};
+  const apiKey = env.VITE_GOOGLE_API_KEY || env.VITE_API_KEY || process.env.API_KEY;
+
+  if (!apiKey) {
+    console.error("DEBUG: API Key sources checked but none found.");
+    throw new Error("API Key is missing. Please set VITE_GOOGLE_API_KEY in Vercel.");
+  }
 
   const ai = new GoogleGenAI({ apiKey });
   const modelName = MODEL_HIERARCHY[modelIndex] || MODEL_HIERARCHY[0];
@@ -70,7 +75,7 @@ export const sendMessageToGemini = async (
 
     const parsed = parseResponse(responseText);
 
-    // Логування в Telegram (не блокує основний інтерфейс)
+    // Логування (не блокує інтерфейс)
     fetch('/api/log', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -90,7 +95,6 @@ export const sendMessageToGemini = async (
 
   } catch (error: any) {
     console.warn(`Model ${modelName} failed, trying fallback...`, error);
-    // Спроба використати наступну модель в ієрархії
     if (modelIndex < MODEL_HIERARCHY.length - 1) {
       return sendMessageToGemini(history, newMessage, modelIndex + 1);
     }
