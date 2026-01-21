@@ -20,7 +20,7 @@ function parseResponse(rawText: string): { text: string; triage: TriageData | nu
 }
 
 /**
- * Використовуємо стабільні назви моделей.
+ * Стабільна назва моделі для уникнення 404 помилок.
  */
 const MODEL_NAME = 'gemini-1.5-flash';
 
@@ -30,16 +30,17 @@ export const sendMessageToGemini = async (
 ): Promise<{ text: string; triage: TriageData | null; modelUsed: string }> => {
   
   /**
-   * На Vercel (Vite) змінні доступні через import.meta.env.
-   * Ми використовуємо VITE_API_KEY, оскільки він прокидається у фронтенд.
+   * У Vite-проектах на Vercel змінні з префіксом VITE_ 
+   * доступні ВИКЛЮЧНО через import.meta.env.
    */
-  const apiKey = (import.meta as any).env?.VITE_API_KEY || (process.env as any)?.API_KEY;
+  const apiKey = (import.meta as any).env.VITE_API_KEY;
 
   if (!apiKey) {
+    console.error("VITE_API_KEY is missing in import.meta.env");
     throw new Error("API_KEY_MISSING");
   }
 
-  // Ініціалізація згідно з документацією: new GoogleGenAI({ apiKey: ... })
+  // Ініціалізуємо SDK безпосередньо перед використанням
   const ai = new GoogleGenAI({ apiKey });
 
   const formattedContents = history.slice(-10).map(msg => ({
@@ -64,7 +65,7 @@ export const sendMessageToGemini = async (
 
     const parsed = parseResponse(text);
 
-    // Логування в Telegram
+    // Логування в Telegram (не блокує основний інтерфейс)
     fetch('/api/log', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -83,7 +84,7 @@ export const sendMessageToGemini = async (
     };
 
   } catch (error: any) {
-    console.error("Gemini API Error:", error);
+    console.error("Gemini API Error Detail:", error);
     throw error;
   }
 };
