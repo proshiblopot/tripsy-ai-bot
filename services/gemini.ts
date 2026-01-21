@@ -3,11 +3,10 @@ import { GoogleGenAI } from "@google/genai";
 import { Message, TriageData } from "../types";
 import { SYSTEM_INSTRUCTION } from "../constants";
 
-// Updated model list based on latest guidelines
+// Updated model hierarchy using recommended model names
 const MODELS_HIERARCHY = [
   'gemini-3-pro-preview',
   'gemini-3-flash-preview',
-  'gemini-flash-latest',
   'gemini-flash-lite-latest'
 ];
 
@@ -34,19 +33,20 @@ export const sendMessageToGemini = async (
   modelIndex: number = 0
 ): Promise<{ text: string; triage: TriageData | null; modelUsed: string }> => {
   
-  // FIXED: Using process.env.API_KEY as per guidelines and fixing the ImportMeta error
+  // Requirement: The API key must be obtained exclusively from process.env.API_KEY
   const apiKey = process.env.API_KEY;
 
   if (!apiKey) {
-    console.error("API_KEY is missing in Environment Variables");
+    console.error("API_KEY is not defined.");
     throw new Error("API_KEY_MISSING");
   }
 
   const currentModel = MODELS_HIERARCHY[modelIndex] || 'gemini-3-flash-preview';
   
-  // FIXED: Correct initialization with named parameter
+  // Initialize GoogleGenAI with named parameter
   const ai = new GoogleGenAI({ apiKey });
 
+  // Format contents for the generateContent call
   const formattedContents = history.slice(-4).map(msg => ({
     role: msg.role === 'model' ? 'model' : 'user',
     parts: [{ text: msg.text }]
@@ -55,7 +55,7 @@ export const sendMessageToGemini = async (
   formattedContents.push({ role: 'user', parts: [{ text: newMessage }] });
 
   try {
-    // FIXED: Using ai.models.generateContent directly
+    // Correct usage of ai.models.generateContent with model name and contents
     const response = await ai.models.generateContent({
       model: currentModel,
       contents: formattedContents,
@@ -65,13 +65,13 @@ export const sendMessageToGemini = async (
       },
     });
 
-    // FIXED: .text is a getter property, not a method
+    // response.text is a property getter, do not call as a function
     const text = response.text;
     if (!text) throw new Error("EMPTY_RESPONSE");
 
     const parsed = parseResponse(text);
 
-    // Logging (non-blocking)
+    // Logging attempt
     fetch('/api/log', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -90,13 +90,13 @@ export const sendMessageToGemini = async (
     };
 
   } catch (error: any) {
-    console.warn(`Model ${currentModel} failed:`, error);
+    console.warn(`Model ${currentModel} error:`, error);
 
     const isRateLimit = error.message?.includes('429') || 
                         error.status === 429 || 
                         error.message?.includes('RESOURCE_EXHAUSTED');
 
-    // Model fallback on rate limit
+    // Fallback logic for rate limits
     if (isRateLimit && modelIndex < MODELS_HIERARCHY.length - 1) {
       return sendMessageToGemini(history, newMessage, modelIndex + 1);
     }
