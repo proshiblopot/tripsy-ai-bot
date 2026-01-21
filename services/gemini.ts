@@ -40,17 +40,18 @@ export const sendMessageToGemini = async (
   modelIndex = 0
 ): Promise<{ text: string; triage: TriageData | null; modelUsed: string }> => {
   
-  // Direct integration using the key via import.meta.env as requested
+  // Strict integration using the specific env variable access requested
   const apiKey = (import.meta as any).env.VITE_GOOGLE_API_KEY;
   if (!apiKey) {
     throw new Error("VITE_GOOGLE_API_KEY is not defined.");
   }
 
+  // Initialize according to the latest @google/genai world-class standards
   const ai = new GoogleGenAI({ apiKey });
   const modelName = MODEL_HIERARCHY[modelIndex];
 
   if (!modelName) {
-    throw new Error("Specified models in hierarchy are exhausted.");
+    throw new Error("All models in hierarchy failed or are unavailable.");
   }
 
   const trimmedHistory = history.slice(-12); 
@@ -63,9 +64,10 @@ export const sendMessageToGemini = async (
   ];
 
   try {
+    // Correct way to call generateContent in the new SDK version
     const response = await ai.models.generateContent({
       model: modelName,
-      contents: formattedContents,
+      contents: { parts: formattedContents.flatMap(c => c.parts) }, // Flattening for simple message structure
       config: {
         systemInstruction: SYSTEM_INSTRUCTION,
         temperature: 0.3,
