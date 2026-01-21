@@ -1,20 +1,13 @@
+
 import { GoogleGenAI } from "@google/genai";
 import { Message, TriageData } from "../types";
 import { SYSTEM_INSTRUCTION } from "../constants";
 
-/**
- * Офіційна ієрархія моделей TriPsy для забезпечення максимальної стабільності.
- * Пріоритет від найрозумніших до найбільш стійких до лімітів.
- */
+// Updated model list according to the guidelines for Gemini 3 and 2.5 series
 const MODELS_HIERARCHY = [
-  'gemini-3-pro-preview',               // 1. Основна модель (найвищий інтелект)
-  'gemini-3-flash-preview',             // 2. Баланс швидкості та якості
-  'gemini-3-pro-image-preview',         // 3. Резервна Pro версія
-  'gemini-2.5-flash-latest',            // 4. Стабільний середній рівень
-  'gemini-flash-lite-latest',           // 5. Найвищі ліміти на запити
-  'gemini-2.5-flash-preview-tts',       // 6. Резервний канал
-  'gemini-2.5-flash-native-audio-preview-12-2025', // 7. Аудіо-оптимізований резерв
-  'gemini-flash-latest'                 // 8. Фінальний бекап
+  'gemini-3-pro-preview',
+  'gemini-3-flash-preview',
+  'gemini-flash-lite-latest'
 ];
 
 function parseResponse(rawText: string): { text: string; triage: TriageData | null } {
@@ -26,11 +19,6 @@ function parseResponse(rawText: string): { text: string; triage: TriageData | nu
       const jsonString = match[1];
       const textPart = rawText.replace(jsonBlockRegex, '').trim();
       const triageData = JSON.parse(jsonString);
-      
-      if (!triageData.urgency || !triageData.topic) {
-        return { text: rawText, triage: null };
-      }
-      
       return { text: textPart, triage: triageData };
     } catch (e) {
       console.error("Failed to parse Triage JSON:", e);
@@ -45,20 +33,24 @@ export const sendMessageToGemini = async (
   modelIndex: number = 0
 ): Promise<{ text: string; triage: TriageData | null; modelUsed: string }> => {
   
-  // Використовуємо метод (import.meta as any).env.VITE_GOOGLE_API_KEY
+  /**
+   * Vite specific environment variable access.
+   * Prefixed with VITE_ to be exposed to the client-side bundle.
+   */
   const apiKey = (import.meta as any).env.VITE_GOOGLE_API_KEY;
 
   if (!apiKey) {
+    console.error("VITE_GOOGLE_API_KEY is missing from environment variables.");
     throw new Error("API_KEY_MISSING");
   }
 
-  const currentModel = MODELS_HIERARCHY[modelIndex];
-  if (!currentModel) throw new Error("ALL_MODELS_FAILED");
-
-  // Ініціалізація клієнта згідно з вимогами SDK
+  const currentModel = MODELS_HIERARCHY[modelIndex] || 'gemini-3-flash-preview';
+  
+  // Initialize with named parameter { apiKey }
   const ai = new GoogleGenAI({ apiKey });
 
-  const formattedContents = history.slice(-6).map(msg => ({
+  // Prepare chat contents history
+  const formattedContents = history.slice(-10).map(msg => ({
     role: msg.role === 'model' ? 'model' : 'user',
     parts: [{ text: msg.text }]
   }));
@@ -66,30 +58,23 @@ export const sendMessageToGemini = async (
   formattedContents.push({ role: 'user', parts: [{ text: newMessage }] });
 
   try {
-    const isPro = currentModel.includes('pro');
-    
+    // Calling generateContent with current model and formatted contents
     const response = await ai.models.generateContent({
       model: currentModel,
       contents: formattedContents.map(c => ({ role: c.role as any, parts: c.parts })),
       config: {
         systemInstruction: SYSTEM_INSTRUCTION,
-        temperature: 0.3,
-        ...(isPro ? { thinkingConfig: { thinkingBudget: 2000 } } : {})
+        temperature: 0.7,
       },
     });
 
+    // Access the .text property (getter) directly as per guidelines
     const text = response.text;
     if (!text) throw new Error("EMPTY_RESPONSE");
 
     const parsed = parseResponse(text);
 
-    // Ротація моделі, якщо не вдалося отримати структурований JSON для тріажу
-    if (!parsed.triage && modelIndex < 3) {
-       console.warn(`Model ${currentModel} failed quality check. Rotating...`);
-       return sendMessageToGemini(history, newMessage, modelIndex + 1);
-    }
-
-    // Асинхронне логування
+    // Logging to internal monitoring
     fetch('/api/log', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -110,16 +95,16 @@ export const sendMessageToGemini = async (
   } catch (error: any) {
     console.warn(`Model ${currentModel} error:`, error);
 
-    const isRetryable = error.message?.includes('429') || 
-                        error.message?.includes('500') ||
+    const isRateLimit = error.message?.includes('429') || 
                         error.status === 429 || 
                         error.message?.includes('RESOURCE_EXHAUSTED');
 
-    if (isRetryable && modelIndex < MODELS_HIERARCHY.length - 1) {
+    // Fallback logic for free tier limits
+    if (isRateLimit && modelIndex < MODELS_HIERARCHY.length - 1) {
       return sendMessageToGemini(history, newMessage, modelIndex + 1);
     }
 
-    if (isRetryable) throw new Error("RATE_LIMIT_EXCEEDED");
+    if (isRateLimit) throw new Error("RATE_LIMIT_EXCEEDED");
     throw error;
   }
 };
