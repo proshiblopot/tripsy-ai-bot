@@ -39,13 +39,23 @@ export const sendMessageToGemini = async (
   modelIndex = 0
 ): Promise<{ text: string; triage: TriageData | null; modelUsed: string }> => {
   
-  // Спроба отримати ключ з різних можливих джерел у Vercel/Vite
-  const env = (import.meta as any).env || {};
-  const apiKey = env.VITE_GOOGLE_API_KEY || env.VITE_API_KEY || process.env.API_KEY;
+  // Універсальний спосіб отримання ключа для Vercel (браузер + build-time)
+  let apiKey = "";
+  
+  try {
+    // 1. Спроба через Vite import.meta.env
+    apiKey = (import.meta as any).env?.VITE_GOOGLE_API_KEY || (import.meta as any).env?.VITE_API_KEY;
+    
+    // 2. Спроба через process.env (якщо Vercel ін'єктує його)
+    if (!apiKey && typeof process !== 'undefined') {
+      apiKey = process.env.API_KEY || (process.env as any).VITE_GOOGLE_API_KEY;
+    }
+  } catch (e) {
+    console.warn("Env access warning:", e);
+  }
 
   if (!apiKey) {
-    console.error("DEBUG: API Key sources checked but none found.");
-    throw new Error("API Key is missing. Please set VITE_GOOGLE_API_KEY in Vercel.");
+    throw new Error("API Key is missing. Переконайтеся, що VITE_GOOGLE_API_KEY додано у Environment Variables на Vercel та зроблено новий Deploy.");
   }
 
   const ai = new GoogleGenAI({ apiKey });
@@ -75,7 +85,7 @@ export const sendMessageToGemini = async (
 
     const parsed = parseResponse(responseText);
 
-    // Логування (не блокує інтерфейс)
+    // Логування в Telegram (не блокує основний потік)
     fetch('/api/log', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
