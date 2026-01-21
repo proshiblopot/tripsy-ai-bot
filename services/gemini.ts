@@ -44,8 +44,9 @@ export const sendMessageToGemini = async (
   retryCount = 0
 ): Promise<{ text: string; triage: TriageData | null; modelUsed: string }> => {
   
-  const apiKey = process.env.API_KEY || (import.meta as any).env.VITE_GOOGLE_API_KEY;
-  if (!apiKey) throw new Error("API Key is missing.");
+  // Returning to the previous working API key access method
+  const apiKey = (import.meta as any).env.VITE_GOOGLE_API_KEY;
+  if (!apiKey) throw new Error("API Key is missing (VITE_GOOGLE_API_KEY).");
 
   const ai = new GoogleGenAI({ apiKey });
   const modelName = MODEL_HIERARCHY[modelIndex] || MODEL_HIERARCHY[0];
