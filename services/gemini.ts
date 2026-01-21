@@ -25,12 +25,13 @@ function parseResponse(rawText: string): { text: string; triage: TriageData | nu
 }
 
 /**
- * Hierarchy of models with Pro prioritized.
+ * Model Hierarchy as requested: 3 Pro -> 3 Flash -> 1.5 Pro -> 1.5 Flash.
  */
 const MODEL_HIERARCHY = [
   'gemini-3-pro-preview',
   'gemini-3-flash-preview',
-  'gemini-2.5-flash-lite-latest'
+  'gemini-1.5-pro',
+  'gemini-1.5-flash'
 ];
 
 export const sendMessageToGemini = async (
@@ -39,14 +40,19 @@ export const sendMessageToGemini = async (
   modelIndex = 0
 ): Promise<{ text: string; triage: TriageData | null; modelUsed: string }> => {
   
-  // Reverting to the user's specific access method via import.meta.env
   const apiKey = (import.meta as any).env.VITE_GOOGLE_API_KEY;
-  if (!apiKey) throw new Error("API Key is missing (VITE_GOOGLE_API_KEY).");
+  if (!apiKey) {
+    throw new Error("VITE_GOOGLE_API_KEY is not defined.");
+  }
 
   const ai = new GoogleGenAI({ apiKey });
-  const modelName = MODEL_HIERARCHY[modelIndex] || MODEL_HIERARCHY[0];
+  const modelName = MODEL_HIERARCHY[modelIndex];
 
-  const trimmedHistory = history.slice(-10);
+  if (!modelName) {
+    throw new Error("Specified models are currently unavailable.");
+  }
+
+  const trimmedHistory = history.slice(-12); 
   const formattedContents = [
     ...trimmedHistory.map(msg => ({
       role: msg.role === 'model' ? 'model' : 'user',
@@ -61,12 +67,13 @@ export const sendMessageToGemini = async (
       contents: formattedContents,
       config: {
         systemInstruction: SYSTEM_INSTRUCTION,
-        temperature: 0.7,
+        temperature: 0.3,
+        topP: 0.95,
       },
     });
 
     const responseText = response.text;
-    if (!responseText) throw new Error("Empty response");
+    if (!responseText) throw new Error("Empty model response");
 
     const parsed = parseResponse(responseText);
     return { 
@@ -75,10 +82,12 @@ export const sendMessageToGemini = async (
     };
 
   } catch (error: any) {
-    // Immediate fallback without timeout or second attempt of the same model for speed
+    console.warn(`Model ${modelName} failed. Reason: ${error.message}. Trying next in hierarchy...`);
+    
     if (modelIndex < MODEL_HIERARCHY.length - 1) {
       return sendMessageToGemini(history, newMessage, modelIndex + 1);
     }
+    
     throw error;
   }
 };
