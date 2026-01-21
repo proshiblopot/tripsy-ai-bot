@@ -20,9 +20,9 @@ function parseResponse(rawText: string): { text: string; triage: TriageData | nu
 }
 
 /**
- * Стабільна назва моделі для уникнення 404 помилок.
+ * Використовуємо рекомендовану модель для базових текстових завдань.
  */
-const MODEL_NAME = 'gemini-1.5-flash';
+const MODEL_NAME = 'gemini-3-flash-preview';
 
 export const sendMessageToGemini = async (
   history: Message[], 
@@ -30,17 +30,18 @@ export const sendMessageToGemini = async (
 ): Promise<{ text: string; triage: TriageData | null; modelUsed: string }> => {
   
   /**
-   * У Vite-проектах на Vercel змінні з префіксом VITE_ 
-   * доступні ВИКЛЮЧНО через import.meta.env.
+   * Спроба отримати ключ з різних джерел:
+   * 1. process.env.API_KEY - стандарт для інжектованих ключів у цьому середовищі.
+   * 2. import.meta.env.VITE_API_KEY - стандарт для Vite.
    */
-  const apiKey = (import.meta as any).env.VITE_API_KEY;
+  const apiKey = (process.env as any).API_KEY || (import.meta as any).env?.VITE_API_KEY;
 
   if (!apiKey) {
-    console.error("VITE_API_KEY is missing in import.meta.env");
+    console.error("API Key not found in process.env or import.meta.env");
     throw new Error("API_KEY_MISSING");
   }
 
-  // Ініціалізуємо SDK безпосередньо перед використанням
+  // Ініціалізуємо SDK безпосередньо перед використанням згідно з правилами
   const ai = new GoogleGenAI({ apiKey });
 
   const formattedContents = history.slice(-10).map(msg => ({
@@ -53,7 +54,9 @@ export const sendMessageToGemini = async (
   try {
     const response = await ai.models.generateContent({
       model: MODEL_NAME,
-      contents: formattedContents,
+      contents: {
+        parts: formattedContents.flatMap(c => c.parts)
+      },
       config: {
         systemInstruction: SYSTEM_INSTRUCTION,
         temperature: 0.7,
