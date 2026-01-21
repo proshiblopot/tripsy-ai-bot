@@ -1,3 +1,4 @@
+
 import { useState, useRef, useEffect } from 'react';
 import { Message, TriageData } from './types';
 import { sendMessageToGemini } from './services/gemini';
@@ -149,7 +150,7 @@ function App() {
           <div className="bg-teal-100 p-2 rounded-xl"><HeartHandshake className="w-6 h-6 text-teal-600" /></div>
           <div>
             <h1 className="text-lg font-bold text-slate-800 leading-none">TriPsy</h1>
-            <p className="text-xs text-slate-500 font-medium mt-0.5">{welcomeTab === 'ua' ? 'Поруч' : "Here"}</p>
+            <p className="text-xs text-slate-500 font-medium mt-0.5">{welcomeTab === 'ua' ? 'Поруч, коли важко' : "Here, when it's hard"}</p>
           </div>
         </div>
         <div className="flex items-center gap-2">
