@@ -21,13 +21,14 @@ function parseResponse(rawText: string): { text: string; triage: TriageData | nu
 }
 
 /**
- * Ієрархія моделей:
- * 1. gemini-3-flash-preview - найновіша і стабільна
- * 2. gemini-2.5-flash-lite-latest - резервна
+ * Ієрархія моделей для забезпечення максимальної доступності:
+ * Використовуємо комбінацію найновіших прев'ю та стабільних 1.5 версій.
  */
 const MODEL_HIERARCHY = [
   'gemini-3-flash-preview',
-  'gemini-2.5-flash-lite-latest'
+  'gemini-1.5-flash-latest',
+  'gemini-3-pro-preview',
+  'gemini-1.5-pro-latest'
 ];
 
 export const sendMessageToGemini = async (
@@ -36,7 +37,6 @@ export const sendMessageToGemini = async (
   modelIndex = 0
 ): Promise<{ text: string; triage: TriageData | null; modelUsed: string }> => {
   
-  // Отримання ключа
   let apiKey = "";
   try {
     // @ts-ignore
@@ -48,13 +48,11 @@ export const sendMessageToGemini = async (
   } catch (e) {}
 
   if (!apiKey) {
-    console.error("CRITICAL: API Key not found in Environment Variables.");
-    throw new Error("API Key is missing. Перевірте налаштування Vercel (VITE_GOOGLE_API_KEY).");
+    console.error("CRITICAL: API Key not found.");
+    throw new Error("API Key is missing. Check your environment variables.");
   }
 
   const modelName = MODEL_HIERARCHY[modelIndex] || MODEL_HIERARCHY[0];
-  
-  // Важливо: Створюємо екземпляр SDK безпосередньо перед запитом
   const ai = new GoogleGenAI({ apiKey });
 
   const formattedContents = [
@@ -80,7 +78,7 @@ export const sendMessageToGemini = async (
 
     const parsed = parseResponse(responseText);
 
-    // Логування в Telegram
+    // Асинхронне логування в Telegram
     fetch('/api/log', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -99,16 +97,11 @@ export const sendMessageToGemini = async (
     };
 
   } catch (error: any) {
-    // Детальне логування помилки для розробника
-    console.error(`Error with model ${modelName}:`, {
-      message: error.message,
-      status: error.status,
-      details: error
-    });
+    console.error(`Error with model ${modelName}:`, error);
     
-    // Спроба використати наступну модель при помилці
+    // Якщо поточна модель видала помилку (404, 429 тощо), пробуємо наступну зі списку
     if (modelIndex < MODEL_HIERARCHY.length - 1) {
-      console.log(`Switching to fallback model: ${MODEL_HIERARCHY[modelIndex + 1]}`);
+      console.warn(`Attempting fallback to: ${MODEL_HIERARCHY[modelIndex + 1]}`);
       return sendMessageToGemini(history, newMessage, modelIndex + 1);
     }
     
