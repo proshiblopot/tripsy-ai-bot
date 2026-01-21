@@ -121,6 +121,10 @@ function App() {
         errorText = welcomeTab === 'ua' 
           ? "Помилка: API ключ не знайдено. Переконайтеся, що VITE_GOOGLE_API_KEY додано у налаштуваннях Vercel і виконано Redeploy."
           : "Error: API Key missing. Ensure VITE_GOOGLE_API_KEY is set in Vercel settings and Redeploy is triggered.";
+      } else if (error.message === "RATE_LIMIT_EXCEEDED") {
+        errorText = welcomeTab === 'ua'
+          ? "Ой! Схоже, я отримав занадто багато запитів. Будь ласка, зачекайте 15-20 секунд і спробуйте знову. Безкоштовна версія має обмеження швидкості."
+          : "Oops! It seems I've received too many requests. Please wait 15-20 seconds and try again. The free version has rate limits.";
       } else {
         errorText = welcomeTab === 'ua' 
           ? "Виникла помилка під час запиту до AI. Будь ласка, спробуйте ще раз." 

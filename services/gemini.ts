@@ -26,21 +26,16 @@ export const sendMessageToGemini = async (
   newMessage: string
 ): Promise<{ text: string; triage: TriageData | null; modelUsed: string }> => {
   
-  /**
-   * Для Vite додатків на Vercel змінні ПОВИННІ починатися з VITE_.
-   * Під час збірки Vite замінює цей рядок на реальне значення.
-   */
   const apiKey = (import.meta as any).env.VITE_GOOGLE_API_KEY;
 
   if (!apiKey) {
-    console.error("CRITICAL: VITE_GOOGLE_API_KEY not found in import.meta.env");
     throw new Error("API_KEY_MISSING");
   }
 
-  // Ініціалізація згідно з документацією @google/genai
   const ai = new GoogleGenAI({ apiKey });
 
-  const formattedContents = history.slice(-10).map(msg => ({
+  // Зменшуємо історію до 5 повідомлень, щоб не перевищувати ліміти безкоштовного рівня
+  const formattedContents = history.slice(-5).map(msg => ({
     role: msg.role === 'model' ? 'model' : 'user',
     parts: [{ text: msg.text }]
   }));
@@ -64,7 +59,7 @@ export const sendMessageToGemini = async (
 
     const parsed = parseResponse(text);
 
-    // Логування в Telegram через API Route Vercel
+    // Логування
     fetch('/api/log', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -83,7 +78,13 @@ export const sendMessageToGemini = async (
     };
 
   } catch (error: any) {
-    console.error("Gemini API Error:", error);
+    console.error("Gemini API Error Detail:", error);
+    
+    // Перевірка на помилку ліміту запитів (429)
+    if (error.message?.includes('429') || error.status === 429) {
+      throw new Error("RATE_LIMIT_EXCEEDED");
+    }
+    
     throw error;
   }
 };
