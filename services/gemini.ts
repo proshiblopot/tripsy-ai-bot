@@ -25,7 +25,7 @@ function parseResponse(rawText: string): { text: string; triage: TriageData | nu
 }
 
 /**
- * Model Hierarchy as requested: 3 Pro -> 3 Flash -> 1.5 Pro -> 1.5 Flash.
+ * Model Hierarchy: 3 Pro -> 3 Flash -> 1.5 Pro -> 1.5 Flash.
  */
 const MODEL_HIERARCHY = [
   'gemini-3-pro-preview',
@@ -40,6 +40,7 @@ export const sendMessageToGemini = async (
   modelIndex = 0
 ): Promise<{ text: string; triage: TriageData | null; modelUsed: string }> => {
   
+  // Strict integration using the specific env variable access requested
   const apiKey = (import.meta as any).env.VITE_GOOGLE_API_KEY;
   if (!apiKey) {
     throw new Error("VITE_GOOGLE_API_KEY is not defined.");
@@ -49,7 +50,7 @@ export const sendMessageToGemini = async (
   const modelName = MODEL_HIERARCHY[modelIndex];
 
   if (!modelName) {
-    throw new Error("Specified models are currently unavailable.");
+    throw new Error("Requested models are currently unavailable.");
   }
 
   const trimmedHistory = history.slice(-12); 
