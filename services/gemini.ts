@@ -3,18 +3,18 @@ import { Message, TriageData } from "../types";
 import { SYSTEM_INSTRUCTION } from "../constants";
 
 /**
- * Ієрархія моделей з урахуванням специфіки задач TriPsy.
- * Кожна наступна модель — це резервний план.
+ * Офіційна ієрархія моделей TriPsy для забезпечення максимальної стабільності.
+ * Пріоритет від найрозумніших до найбільш стійких до лімітів.
  */
 const MODELS_HIERARCHY = [
-  'gemini-3-pro-preview',               // 1. Максимальний інтелект та емпатія
-  'gemini-3-flash-preview',             // 2. Висока швидкість, добрий JSON
-  'gemini-3-pro-image-preview',         // 3. Стабільна 2.5/3 Pro версія
-  'gemini-2.5-flash-latest',            // 4. Оптимальна для середніх навантажень
-  'gemini-flash-lite-latest',           // 5. Полегшена версія з високими лімітами
-  'gemini-2.5-flash-preview-tts',       // 6. Резерв 1
-  'gemini-2.5-flash-native-audio-preview-12-2025', // 7. Резерв 2
-  'gemini-flash-latest'                 // 8. Останній бекап
+  'gemini-3-pro-preview',               // 1. Основна модель (найвищий інтелект)
+  'gemini-3-flash-preview',             // 2. Баланс швидкості та якості
+  'gemini-3-pro-image-preview',         // 3. Резервна Pro версія
+  'gemini-2.5-flash-latest',            // 4. Стабільний середній рівень
+  'gemini-flash-lite-latest',           // 5. Найвищі ліміти на запити
+  'gemini-2.5-flash-preview-tts',       // 6. Резервний канал
+  'gemini-2.5-flash-native-audio-preview-12-2025', // 7. Аудіо-оптимізований резерв
+  'gemini-flash-latest'                 // 8. Фінальний бекап
 ];
 
 function parseResponse(rawText: string): { text: string; triage: TriageData | null } {
@@ -27,7 +27,6 @@ function parseResponse(rawText: string): { text: string; triage: TriageData | nu
       const textPart = rawText.replace(jsonBlockRegex, '').trim();
       const triageData = JSON.parse(jsonString);
       
-      // Базова перевірка наявності необхідних полів
       if (!triageData.urgency || !triageData.topic) {
         return { text: rawText, triage: null };
       }
@@ -46,8 +45,8 @@ export const sendMessageToGemini = async (
   modelIndex: number = 0
 ): Promise<{ text: string; triage: TriageData | null; modelUsed: string }> => {
   
-  // Використовуємо API_KEY з оточення (відповідно до інструкцій)
-  const apiKey = (process.env.API_KEY) || (import.meta as any).env.VITE_GOOGLE_API_KEY;
+  // Використовуємо (import.meta as any).env.VITE_GOOGLE_API_KEY згідно з вашою вимогою
+  const apiKey = (import.meta as any).env.VITE_GOOGLE_API_KEY;
 
   if (!apiKey) {
     throw new Error("API_KEY_MISSING");
@@ -56,6 +55,7 @@ export const sendMessageToGemini = async (
   const currentModel = MODELS_HIERARCHY[modelIndex];
   if (!currentModel) throw new Error("ALL_MODELS_FAILED");
 
+  // Ініціалізація клієнта безпосередньо перед викликом
   const ai = new GoogleGenAI({ apiKey });
 
   const formattedContents = history.slice(-6).map(msg => ({
@@ -66,7 +66,6 @@ export const sendMessageToGemini = async (
   formattedContents.push({ role: 'user', parts: [{ text: newMessage }] });
 
   try {
-    // Конфігурація залежно від потужності моделі
     const isPro = currentModel.includes('pro');
     
     const response = await ai.models.generateContent({
@@ -74,8 +73,7 @@ export const sendMessageToGemini = async (
       contents: formattedContents.map(c => ({ role: c.role as any, parts: c.parts })),
       config: {
         systemInstruction: SYSTEM_INSTRUCTION,
-        temperature: 0.7,
-        // Для Pro моделей додаємо бюджет на "роздуми" для кращої емпатії
+        temperature: 0.3, // Температура 0.3 для стабільності JSON
         ...(isPro ? { thinkingConfig: { thinkingBudget: 2000 } } : {})
       },
     });
@@ -85,14 +83,13 @@ export const sendMessageToGemini = async (
 
     const parsed = parseResponse(text);
 
-    // ВАЖЛИВО: Якщо модель не видала JSON (triage === null) і це не остання модель,
-    // ми вважаємо це технічною невдачею і переходимо до наступної для надійності.
-    if (!parsed.triage && modelIndex < 3) { // Для перших трьох моделей JSON обов'язковий
-       console.warn(`Model ${currentModel} failed to provide JSON. Rotating...`);
+    // Ротація, якщо модель не видала JSON у перших спробах
+    if (!parsed.triage && modelIndex < 3) {
+       console.warn(`Model ${currentModel} failed quality check. Rotating...`);
        return sendMessageToGemini(history, newMessage, modelIndex + 1);
     }
 
-    // Логування в Telegram
+    // Логування
     fetch('/api/log', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
