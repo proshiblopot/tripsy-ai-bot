@@ -21,13 +21,14 @@ function parseResponse(rawText: string): { text: string; triage: TriageData | nu
 }
 
 /**
- * Ієрархія моделей для забезпечення максимальної доступності:
- * Використовуємо комбінацію найновіших прев'ю та стабільних 1.5 версій.
+ * Оновлена ієрархія для уникнення лімітів (429) та помилок відсутності моделей (404):
+ * 1. gemini-1.5-flash-latest - стабільна, високі ліміти.
+ * 2. gemini-3-flash-preview - нова, швидка, але низькі ліміти.
+ * 3. gemini-1.5-pro-latest - потужна, низькі ліміти.
  */
 const MODEL_HIERARCHY = [
-  'gemini-3-flash-preview',
   'gemini-1.5-flash-latest',
-  'gemini-3-pro-preview',
+  'gemini-3-flash-preview',
   'gemini-1.5-pro-latest'
 ];
 
@@ -48,7 +49,6 @@ export const sendMessageToGemini = async (
   } catch (e) {}
 
   if (!apiKey) {
-    console.error("CRITICAL: API Key not found.");
     throw new Error("API Key is missing. Check your environment variables.");
   }
 
@@ -74,11 +74,11 @@ export const sendMessageToGemini = async (
     });
 
     const responseText = response.text;
-    if (!responseText) throw new Error("Empty response from " + modelName);
+    if (!responseText) throw new Error("Empty response");
 
     const parsed = parseResponse(responseText);
 
-    // Асинхронне логування в Telegram
+    // Логування
     fetch('/api/log', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -99,9 +99,8 @@ export const sendMessageToGemini = async (
   } catch (error: any) {
     console.error(`Error with model ${modelName}:`, error);
     
-    // Якщо поточна модель видала помилку (404, 429 тощо), пробуємо наступну зі списку
+    // Якщо помилка 429 або 404 — перемикаємося на наступну модель
     if (modelIndex < MODEL_HIERARCHY.length - 1) {
-      console.warn(`Attempting fallback to: ${MODEL_HIERARCHY[modelIndex + 1]}`);
       return sendMessageToGemini(history, newMessage, modelIndex + 1);
     }
     
