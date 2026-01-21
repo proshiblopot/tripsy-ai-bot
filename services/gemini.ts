@@ -1,18 +1,13 @@
+
 import { GoogleGenAI } from "@google/genai";
 import { Message, TriageData } from "../types";
 import { SYSTEM_INSTRUCTION } from "../constants";
 
-/**
- * Пріоритет моделей згідно з вашим запитом:
- * 3 Pro -> 3 Flash -> 2.5 Pro -> 2.5 Flash -> 1.5 Pro (mapped to 3) -> 1.5 Flash (mapped to 3)
- */
+// Updated model list according to the guidelines for Gemini 3 and 2.5 series
 const MODELS_HIERARCHY = [
-  'gemini-3-pro-preview',             // 3 Pro
-  'gemini-3-flash-preview',           // 3 Flash
-  'gemini-2.5-pro-preview',           // 2.5 Pro
-  'gemini-2.5-flash-preview-09-2025', // 2.5 Flash
-  'gemini-3-pro-preview',             // Fallback to 3 Pro
-  'gemini-3-flash-preview'            // Fallback to 3 Flash
+  'gemini-3-pro-preview',
+  'gemini-3-flash-preview',
+  'gemini-flash-lite-latest'
 ];
 
 function parseResponse(rawText: string): { text: string; triage: TriageData | null } {
@@ -38,16 +33,23 @@ export const sendMessageToGemini = async (
   modelIndex: number = 0
 ): Promise<{ text: string; triage: TriageData | null; modelUsed: string }> => {
   
+  /**
+   * Vite specific environment variable access.
+   * Prefixed with VITE_ to be exposed to the client-side bundle.
+   */
   const apiKey = (import.meta as any).env.VITE_GOOGLE_API_KEY;
 
   if (!apiKey) {
-    console.error("VITE_GOOGLE_API_KEY is missing.");
+    console.error("VITE_GOOGLE_API_KEY is missing from environment variables.");
     throw new Error("API_KEY_MISSING");
   }
 
   const currentModel = MODELS_HIERARCHY[modelIndex] || 'gemini-3-flash-preview';
+  
+  // Initialize with named parameter { apiKey }
   const ai = new GoogleGenAI({ apiKey });
 
+  // Prepare chat contents history
   const formattedContents = history.slice(-10).map(msg => ({
     role: msg.role === 'model' ? 'model' : 'user',
     parts: [{ text: msg.text }]
@@ -56,32 +58,23 @@ export const sendMessageToGemini = async (
   formattedContents.push({ role: 'user', parts: [{ text: newMessage }] });
 
   try {
-    const isPro = currentModel.includes('pro');
-    
-    // Встановлюємо бюджети для мислення
-    // Для стабільності обов'язково вказуємо maxOutputTokens
-    const thinkingBudget = isPro ? 8000 : 4000;
-    const maxOutputTokens = thinkingBudget + 4000; // Резервуємо 4к токенів на саму відповідь
-
+    // Calling generateContent with current model and formatted contents
     const response = await ai.models.generateContent({
       model: currentModel,
       contents: formattedContents.map(c => ({ role: c.role as any, parts: c.parts })),
       config: {
         systemInstruction: SYSTEM_INSTRUCTION,
         temperature: 0.7,
-        maxOutputTokens: maxOutputTokens,
-        thinkingConfig: { 
-          thinkingBudget: thinkingBudget 
-        }
       },
     });
 
+    // Access the .text property (getter) directly as per guidelines
     const text = response.text;
     if (!text) throw new Error("EMPTY_RESPONSE");
 
     const parsed = parseResponse(text);
 
-    // Логування
+    // Logging to internal monitoring
     fetch('/api/log', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -100,19 +93,18 @@ export const sendMessageToGemini = async (
     };
 
   } catch (error: any) {
-    console.warn(`Model ${currentModel} error (attempt ${modelIndex + 1}):`, error);
+    console.warn(`Model ${currentModel} error:`, error);
 
-    const isRetryable = error.message?.includes('429') || 
+    const isRateLimit = error.message?.includes('429') || 
                         error.status === 429 || 
-                        error.message?.includes('RESOURCE_EXHAUSTED') ||
-                        error.message?.includes('500') ||
-                        error.message?.includes('quota');
+                        error.message?.includes('RESOURCE_EXHAUSTED');
 
-    if (isRetryable && modelIndex < MODELS_HIERARCHY.length - 1) {
+    // Fallback logic for free tier limits
+    if (isRateLimit && modelIndex < MODELS_HIERARCHY.length - 1) {
       return sendMessageToGemini(history, newMessage, modelIndex + 1);
     }
 
-    if (isRetryable) throw new Error("RATE_LIMIT_EXCEEDED");
+    if (isRateLimit) throw new Error("RATE_LIMIT_EXCEEDED");
     throw error;
   }
 };
