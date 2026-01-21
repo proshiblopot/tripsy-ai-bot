@@ -3,14 +3,12 @@ import { GoogleGenAI } from "@google/genai";
 import { Message, TriageData } from "../types";
 import { SYSTEM_INSTRUCTION } from "../constants";
 
-// Список моделей у порядку пріоритету для перевірки лімітів
+// Updated model list according to the provided guidelines for Gemini 3 and 2.5 series
 const MODELS_HIERARCHY = [
   'gemini-3-pro-preview',
   'gemini-3-flash-preview',
-  'gemini-2.0-pro-exp-02-05',
-  'gemini-2.0-flash-exp',
-  'gemini-1.5-pro-latest',
-  'gemini-1.5-flash-latest'
+  'gemini-2.5-flash-latest',
+  'gemini-2.5-flash-lite-latest'
 ];
 
 function parseResponse(rawText: string): { text: string; triage: TriageData | null } {
@@ -36,17 +34,20 @@ export const sendMessageToGemini = async (
   modelIndex: number = 0
 ): Promise<{ text: string; triage: TriageData | null; modelUsed: string }> => {
   
-  // Універсальний спосіб отримання ключа: Vercel (VITE_) або Sandbox (process.env)
-  const apiKey = (import.meta as any).env?.VITE_GOOGLE_API_KEY || process.env.API_KEY;
+  // Use process.env.API_KEY as per the library guidelines requirement
+  const apiKey = process.env.API_KEY;
 
   if (!apiKey) {
+    console.error("process.env.API_KEY is not defined");
     throw new Error("API_KEY_MISSING");
   }
 
-  const currentModel = MODELS_HIERARCHY[modelIndex];
+  const currentModel = MODELS_HIERARCHY[modelIndex] || 'gemini-3-flash-preview';
+  
+  // Initialization must use a named parameter { apiKey }
   const ai = new GoogleGenAI({ apiKey });
 
-  // Формування історії (останні 4 повідомлення для економії токенів)
+  // Map history to the contents format expected by the SDK
   const formattedContents = history.slice(-4).map(msg => ({
     role: msg.role === 'model' ? 'model' : 'user',
     parts: [{ text: msg.text }]
@@ -55,6 +56,7 @@ export const sendMessageToGemini = async (
   formattedContents.push({ role: 'user', parts: [{ text: newMessage }] });
 
   try {
+    // Calling generateContent directly on ai.models
     const response = await ai.models.generateContent({
       model: currentModel,
       contents: formattedContents,
@@ -64,12 +66,13 @@ export const sendMessageToGemini = async (
       },
     });
 
+    // response.text is a property getter, not a method
     const text = response.text;
     if (!text) throw new Error("EMPTY_RESPONSE");
 
     const parsed = parseResponse(text);
 
-    // Логування успішного запиту
+    // Logging to internal telemetry
     fetch('/api/log', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -88,19 +91,17 @@ export const sendMessageToGemini = async (
     };
 
   } catch (error: any) {
-    console.warn(`Model ${currentModel} failed:`, error.message);
+    console.warn(`Model ${currentModel} failed or rate limited:`, error);
 
     const isRateLimit = error.message?.includes('429') || 
                         error.status === 429 || 
                         error.message?.includes('RESOURCE_EXHAUSTED');
 
-    // Якщо це помилка ліміту і є наступна модель у списку - пробуємо її
+    // Cascade through models on rate limit
     if (isRateLimit && modelIndex < MODELS_HIERARCHY.length - 1) {
-      console.log(`Switching to fallback model: ${MODELS_HIERARCHY[modelIndex + 1]}`);
       return sendMessageToGemini(history, newMessage, modelIndex + 1);
     }
 
-    // Якщо ліміти вичерпані всюди або інша помилка
     if (isRateLimit) {
       throw new Error("RATE_LIMIT_EXCEEDED");
     }
