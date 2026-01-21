@@ -26,13 +26,12 @@ function parseResponse(rawText: string): { text: string; triage: TriageData | nu
 
 /**
  * Model Hierarchy: 3 Pro -> 3 Flash -> 1.5 Pro -> 1.5 Flash.
- * Note: Added '-latest' to 1.5 models to ensure compatibility with the current API version.
  */
 const MODEL_HIERARCHY = [
   'gemini-3-pro-preview',
   'gemini-3-flash-preview',
-  'gemini-1.5-pro-latest',
-  'gemini-1.5-flash-latest'
+  'gemini-1.5-pro',
+  'gemini-1.5-flash'
 ];
 
 export const sendMessageToGemini = async (
