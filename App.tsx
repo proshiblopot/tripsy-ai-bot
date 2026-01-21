@@ -118,14 +118,14 @@ function App() {
       console.error("App: Message error", error);
       let errorText = "";
       
-      if (error.message?.includes("API Key is missing")) {
+      if (error.message === "API_KEY_MISSING") {
         errorText = welcomeTab === 'ua' 
-          ? "Критична помилка: API ключ не знайдено. Будь ласка, додайте VITE_GOOGLE_API_KEY в налаштуваннях Vercel."
-          : "Critical Error: API Key not found. Please add VITE_GOOGLE_API_KEY to Vercel settings.";
+          ? "Критична помилка: API ключ не знайдено у змінних оточення Vercel. Перевірте назву API_KEY або VITE_API_KEY."
+          : "Critical Error: API Key not found in Vercel env vars. Check API_KEY or VITE_API_KEY.";
       } else {
         errorText = welcomeTab === 'ua' 
-          ? "Помилка зв'язку з AI. Спробуйте ще раз або перевірте ліміти API." 
-          : "AI Connection Error. Please try again or check API quotas.";
+          ? "Помилка зв'язку з AI (404/429). Спробуйте пізніше або перевірте налаштування моделі." 
+          : "AI Connection Error (404/429). Please try later or check model settings.";
       }
       
       setMessages(prev => [...prev, {

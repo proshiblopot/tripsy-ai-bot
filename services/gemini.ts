@@ -21,15 +21,13 @@ function parseResponse(rawText: string): { text: string; triage: TriageData | nu
 }
 
 /**
- * Ієрархія моделей для забезпечення безперебійної роботи:
- * 1. gemini-1.5-flash - стабільна, високі ліміти.
- * 2. gemini-2.0-flash-exp - швидка (experimental).
- * 3. gemini-1.5-pro - потужна.
+ * Иерархия моделей. 
+ * ВАЖНО: Удалены суффиксы '-latest', которые вызывают 404 в v1beta.
  */
 const MODEL_HIERARCHY = [
   'gemini-1.5-flash',
-  'gemini-2.0-flash-exp',
-  'gemini-1.5-pro'
+  'gemini-1.5-pro',
+  'gemini-2.0-flash-exp'
 ];
 
 export const sendMessageToGemini = async (
@@ -38,17 +36,21 @@ export const sendMessageToGemini = async (
   modelIndex = 0
 ): Promise<{ text: string; triage: TriageData | null; modelUsed: string }> => {
   
-  // Vercel та більшість середовищ збірки використовують process.env для ін'єкції ключів.
-  // В AI Studio середовищі ключ доступний саме через process.env.API_KEY.
-  const apiKey = process.env.API_KEY;
+  /**
+   * Vercel требует префикс VITE_ для клиентских переменных.
+   * Мы проверяем оба варианта, чтобы соответствовать и SDK, и платформе.
+   */
+  const apiKey = (process.env as any).API_KEY || 
+                 (process.env as any).VITE_API_KEY || 
+                 (import.meta as any).env?.VITE_API_KEY;
 
   if (!apiKey) {
-    throw new Error("API Key is missing. Ensure process.env.API_KEY is defined in your environment.");
+    throw new Error("API_KEY_MISSING");
   }
 
   const modelName = MODEL_HIERARCHY[modelIndex] || MODEL_HIERARCHY[0];
   
-  // Створюємо екземпляр згідно з правилами: new GoogleGenAI({ apiKey: process.env.API_KEY })
+  // Инициализация строго по гайдлайну SDK
   const ai = new GoogleGenAI({ apiKey });
 
   const formattedContents = history.slice(-6).map(msg => ({
@@ -69,11 +71,11 @@ export const sendMessageToGemini = async (
     });
 
     const text = response.text;
-    if (!text) throw new Error("Empty response from model");
+    if (!text) throw new Error("EMPTY_RESPONSE");
 
     const parsed = parseResponse(text);
 
-    // Логування (асинхронно)
+    // Логирование в Telegram через API роут
     fetch('/api/log', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -94,9 +96,8 @@ export const sendMessageToGemini = async (
   } catch (error: any) {
     console.error(`Gemini Error (${modelName}):`, error);
     
-    // Перемикання на наступну модель при 429 (ліміти) або 404 (недоступність)
+    // Автоматический переход на другую модель при ошибках 404 или 429
     if (modelIndex < MODEL_HIERARCHY.length - 1) {
-      console.warn(`Attempting fallback to ${MODEL_HIERARCHY[modelIndex + 1]}`);
       return sendMessageToGemini(history, newMessage, modelIndex + 1);
     }
     
