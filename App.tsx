@@ -104,9 +104,10 @@ function App() {
     setIsLoading(true);
 
     try {
-      // Перевірка наявності ключа перед запитом (хоча SDK обробить це сам)
-      if (!process.env.API_KEY) {
-         throw new Error("API Key is missing in environment variables");
+      // Перевірка наявності ключа. Пріоритет VITE_GOOGLE_API_KEY як у gemini.ts
+      const key = (import.meta as any).env?.VITE_GOOGLE_API_KEY || process.env.API_KEY;
+      if (!key) {
+         throw new Error("API Key (VITE_GOOGLE_API_KEY) is missing");
       }
 
       const response = await sendMessageToGemini(messages, text);
@@ -122,8 +123,8 @@ function App() {
     } catch (error: any) {
       console.error("App: Message error", error);
       let errorText = welcomeTab === 'ua' 
-        ? "Помилка зв'язку з AI. Перевірте налаштування API ключа в Vercel." 
-        : "AI Connection Error. Check your API Key settings in Vercel.";
+        ? "Помилка зв'язку з AI. Будь ласка, переконайтеся, що VITE_GOOGLE_API_KEY встановлено правильно." 
+        : "AI Connection Error. Please ensure VITE_GOOGLE_API_KEY is correctly set.";
       
       setMessages(prev => [...prev, {
         id: Date.now().toString(),
