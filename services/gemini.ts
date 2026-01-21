@@ -45,7 +45,7 @@ export const sendMessageToGemini = async (
   modelIndex: number = 0
 ): Promise<{ text: string; triage: TriageData | null; modelUsed: string }> => {
   
-  // Використовуємо (import.meta as any).env.VITE_GOOGLE_API_KEY згідно з вашою вимогою
+  // Отримання ключа методом (import.meta as any).env
   const apiKey = (import.meta as any).env.VITE_GOOGLE_API_KEY;
 
   if (!apiKey) {
@@ -55,7 +55,7 @@ export const sendMessageToGemini = async (
   const currentModel = MODELS_HIERARCHY[modelIndex];
   if (!currentModel) throw new Error("ALL_MODELS_FAILED");
 
-  // Ініціалізація клієнта безпосередньо перед викликом з правильним об'єктом конфігурації
+  // Ініціалізація клієнта згідно з вимогами SDK: new GoogleGenAI({ apiKey })
   const ai = new GoogleGenAI({ apiKey });
 
   const formattedContents = history.slice(-6).map(msg => ({
@@ -73,7 +73,7 @@ export const sendMessageToGemini = async (
       contents: formattedContents.map(c => ({ role: c.role as any, parts: c.parts })),
       config: {
         systemInstruction: SYSTEM_INSTRUCTION,
-        temperature: 0.3, // Температура 0.3 для стабільності JSON
+        temperature: 0.3, // Встановлено 0.3 для стабільності
         ...(isPro ? { thinkingConfig: { thinkingBudget: 2000 } } : {})
       },
     });
@@ -83,13 +83,13 @@ export const sendMessageToGemini = async (
 
     const parsed = parseResponse(text);
 
-    // Ротація, якщо модель не видала JSON у перших спробах
+    // Якщо модель не видала JSON у перших трьох спробах, перемикаємося на наступну
     if (!parsed.triage && modelIndex < 3) {
        console.warn(`Model ${currentModel} failed quality check. Rotating...`);
        return sendMessageToGemini(history, newMessage, modelIndex + 1);
     }
 
-    // Логування (асинхронно)
+    // Логування в Telegram (асинхронно)
     fetch('/api/log', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
