@@ -2,6 +2,7 @@
   "name": "tripsy-ai-bot",
   "description": "An empathetic, first-line AI psychological support assistant powered by Gemini with real-time triage analysis.",
   "requestFramePermissions": [
+    "camera",
     "microphone"
   ]
 }

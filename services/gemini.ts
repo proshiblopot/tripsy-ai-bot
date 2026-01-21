@@ -3,10 +3,6 @@ import { GoogleGenAI } from "@google/genai";
 import { Message, TriageData } from "../types";
 import { SYSTEM_INSTRUCTION } from "../constants";
 
-/**
- * Parses the raw response from Gemini to separate the conversational text
- * from the JSON triage data.
- */
 function parseResponse(rawText: string): { text: string; triage: TriageData | null } {
   const jsonBlockRegex = /```json\s*([\s\S]*?)\s*```$/;
   const match = rawText.match(jsonBlockRegex);
@@ -24,49 +20,26 @@ function parseResponse(rawText: string): { text: string; triage: TriageData | nu
   return { text: rawText, triage: null };
 }
 
-/**
- * Model Hierarchy: Standard names to avoid 404 issues in specific regions/SDK versions.
- */
-const MODEL_HIERARCHY = [
-  'gemini-1.5-pro',
-  'gemini-1.5-flash',
-  'gemini-pro',
-  'gemini-flash'
-];
-
 export const sendMessageToGemini = async (
   history: Message[], 
-  newMessage: string,
-  modelIndex = 0
+  newMessage: string
 ): Promise<{ text: string; triage: TriageData | null; modelUsed: string }> => {
   
-  // Use the exact environment variable access requested
-  const apiKey = (import.meta as any).env.VITE_GOOGLE_API_KEY;
-  if (!apiKey) {
-    throw new Error("VITE_GOOGLE_API_KEY is not defined.");
-  }
-
-  // Initialize GenAI instance
-  const genAI = new GoogleGenAI({ apiKey });
-  const modelName = MODEL_HIERARCHY[modelIndex];
-
-  if (!modelName) {
-    throw new Error("All models in hierarchy exhausted.");
-  }
+  const modelName = 'gemini-3-pro-preview';
 
   try {
-    // Get the specific model from hierarchy
-    const model = genAI.getGenerativeModel({ 
-      model: modelName,
-      generationConfig: {
-        temperature: 0.3,
-        topP: 0.95,
-      },
-      systemInstruction: SYSTEM_INSTRUCTION
-    });
+    // У Vercel змінні для фронтенду повинні мати префікс VITE_
+    // або ми використовуємо process.env.API_KEY, якщо Vercel прокидає його під час build-time.
+    const apiKey = process.env.API_KEY || (import.meta as any).env?.VITE_API_KEY;
 
-    const trimmedHistory = history.slice(-12); 
-    const formattedContents = [
+    if (!apiKey) {
+      throw new Error("Missing Gemini API Key. Please set API_KEY in Vercel environment variables.");
+    }
+
+    const ai = new GoogleGenAI({ apiKey });
+    
+    const trimmedHistory = history.slice(-6); 
+    const contents = [
       ...trimmedHistory.map(msg => ({
         role: msg.role === 'model' ? 'model' : 'user',
         parts: [{ text: msg.text }]
@@ -74,29 +47,40 @@ export const sendMessageToGemini = async (
       { role: 'user', parts: [{ text: newMessage }] }
     ];
 
-    // Using the classic generateContent pattern
-    const result = await model.generateContent({
-      contents: formattedContents,
+    const response = await ai.models.generateContent({
+      model: modelName,
+      contents: contents,
+      config: {
+        systemInstruction: SYSTEM_INSTRUCTION,
+        temperature: 0.1,
+        topP: 0.95,
+      }
     });
 
-    // Access the text using the standard property or method based on SDK version
-    const responseText = result.response.text(); 
+    const responseText = response.text; 
     if (!responseText) throw new Error("Empty model response");
 
     const parsed = parseResponse(responseText);
+    
+    fetch('/api/log', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        userText: newMessage,
+        botResponse: parsed.text,
+        triage: parsed.triage,
+        modelUsed: modelName,
+        timestamp: new Date().toISOString()
+      })
+    }).catch(() => {});
+
     return { 
       ...parsed, 
       modelUsed: modelName 
     };
 
   } catch (error: any) {
-    console.warn(`Model ${modelName} failed. Reason: ${error.message}. Trying next in hierarchy...`);
-    
-    // Recursive retry with the next model if available
-    if (modelIndex < MODEL_HIERARCHY.length - 1) {
-      return sendMessageToGemini(history, newMessage, modelIndex + 1);
-    }
-    
+    console.error("Gemini API Error:", error);
     throw error;
   }
 };
