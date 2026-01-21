@@ -119,8 +119,8 @@ function App() {
       
       if (error.message === "API_KEY_MISSING") {
         errorText = welcomeTab === 'ua' 
-          ? "Помилка: API ключ не знайдено. Переконайтеся, що VITE_API_KEY додано у налаштуваннях Vercel."
-          : "Error: API Key missing. Ensure VITE_API_KEY is set in Vercel settings.";
+          ? "Помилка: API ключ не знайдено. Переконайтеся, що VITE_GOOGLE_API_KEY додано у налаштуваннях Vercel і виконано Redeploy."
+          : "Error: API Key missing. Ensure VITE_GOOGLE_API_KEY is set in Vercel settings and Redeploy is triggered.";
       } else {
         errorText = welcomeTab === 'ua' 
           ? "Виникла помилка під час запиту до AI. Будь ласка, спробуйте ще раз." 

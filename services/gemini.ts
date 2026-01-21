@@ -27,20 +27,18 @@ export const sendMessageToGemini = async (
 ): Promise<{ text: string; triage: TriageData | null; modelUsed: string }> => {
   
   /**
-   * Отримання ключа:
-   * 1. В першу чергу шукаємо VITE_GOOGLE_API_KEY (як ви вказали).
-   * 2. Fallback на API_KEY (для внутрішніх тестів AI Studio).
+   * Для Vite додатків на Vercel змінні ПОВИННІ починатися з VITE_.
+   * Під час збірки Vite замінює цей рядок на реальне значення.
    */
-  const env = (import.meta as any).env;
-  const apiKey = env?.VITE_GOOGLE_API_KEY || (process.env as any)?.API_KEY;
+  const apiKey = (import.meta as any).env.VITE_GOOGLE_API_KEY;
 
   if (!apiKey) {
-    console.error("CRITICAL: API Key not found. Ensure VITE_GOOGLE_API_KEY is set in Vercel.");
+    console.error("CRITICAL: VITE_GOOGLE_API_KEY not found in import.meta.env");
     throw new Error("API_KEY_MISSING");
   }
 
-  // Створюємо клієнт з іменованим параметром apiKey
-  const ai = new GoogleGenAI({ apiKey: apiKey });
+  // Ініціалізація згідно з документацією @google/genai
+  const ai = new GoogleGenAI({ apiKey });
 
   const formattedContents = history.slice(-10).map(msg => ({
     role: msg.role === 'model' ? 'model' : 'user',
@@ -61,13 +59,12 @@ export const sendMessageToGemini = async (
       },
     });
 
-    // Використовуємо властивість .text (не метод) згідно з документацією
     const text = response.text;
     if (!text) throw new Error("EMPTY_RESPONSE");
 
     const parsed = parseResponse(text);
 
-    // Логування в Telegram
+    // Логування в Telegram через API Route Vercel
     fetch('/api/log', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
