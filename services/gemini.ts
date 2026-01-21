@@ -1,3 +1,4 @@
+
 import { GoogleGenAI } from "@google/genai";
 import { Message, TriageData } from "../types";
 import { SYSTEM_INSTRUCTION } from "../constants";
@@ -26,15 +27,19 @@ export const sendMessageToGemini = async (
   newMessage: string
 ): Promise<{ text: string; triage: TriageData | null; modelUsed: string }> => {
   
-  const apiKey = (import.meta as any).env.VITE_GOOGLE_API_KEY;
+  // FIX: Use process.env.API_KEY as per guidelines. 
+  // The environment variable is assumed to be available in the execution context.
+  const apiKey = process.env.API_KEY;
 
   if (!apiKey) {
+    console.error("process.env.API_KEY is not defined");
     throw new Error("API_KEY_MISSING");
   }
 
+  // FIX: Always use new GoogleGenAI({apiKey: process.env.API_KEY});
   const ai = new GoogleGenAI({ apiKey });
 
-  // Зменшуємо історію до 5 повідомлень, щоб не перевищувати ліміти безкоштовного рівня
+  // Formatting history for the contents array
   const formattedContents = history.slice(-5).map(msg => ({
     role: msg.role === 'model' ? 'model' : 'user',
     parts: [{ text: msg.text }]
@@ -43,23 +48,24 @@ export const sendMessageToGemini = async (
   formattedContents.push({ role: 'user', parts: [{ text: newMessage }] });
 
   try {
+    // FIX: Use ai.models.generateContent directly. 
+    // Do not use model.generateContent or getGenerativeModel.
     const response = await ai.models.generateContent({
       model: MODEL_NAME,
-      contents: {
-        parts: formattedContents.flatMap(c => c.parts)
-      },
+      contents: formattedContents,
       config: {
         systemInstruction: SYSTEM_INSTRUCTION,
         temperature: 0.7,
       },
     });
 
+    // FIX: Access .text property directly (not a method).
     const text = response.text;
     if (!text) throw new Error("EMPTY_RESPONSE");
 
     const parsed = parseResponse(text);
 
-    // Логування
+    // Логування (API Route)
     fetch('/api/log', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -78,9 +84,9 @@ export const sendMessageToGemini = async (
     };
 
   } catch (error: any) {
-    console.error("Gemini API Error Detail:", error);
+    console.error("Gemini API Error:", error);
     
-    // Перевірка на помилку ліміту запитів (429)
+    // Перевірка на Quota Exceeded (429)
     if (error.message?.includes('429') || error.status === 429) {
       throw new Error("RATE_LIMIT_EXCEEDED");
     }
