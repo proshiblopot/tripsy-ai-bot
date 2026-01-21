@@ -46,13 +46,23 @@ export const sendMessageToGemini = async (
     throw new Error("VITE_GOOGLE_API_KEY is not defined.");
   }
 
-  // Initialize according to the latest @google/genai world-class standards
-  const ai = new GoogleGenAI({ apiKey });
+  // Initialize GenAI instance
+  const genAI = new GoogleGenAI({ apiKey });
   const modelName = MODEL_HIERARCHY[modelIndex];
 
   if (!modelName) {
-    throw new Error("All models in hierarchy failed or are unavailable.");
+    throw new Error("All models in hierarchy exhausted.");
   }
+
+  // Get the specific model from hierarchy
+  const model = genAI.getGenerativeModel({ 
+    model: modelName,
+    generationConfig: {
+      temperature: 0.3,
+      topP: 0.95,
+    },
+    systemInstruction: SYSTEM_INSTRUCTION
+  });
 
   const trimmedHistory = history.slice(-12); 
   const formattedContents = [
@@ -64,18 +74,12 @@ export const sendMessageToGemini = async (
   ];
 
   try {
-    // Correct way to call generateContent in the new SDK version
-    const response = await ai.models.generateContent({
-      model: modelName,
-      contents: { parts: formattedContents.flatMap(c => c.parts) }, // Flattening for simple message structure
-      config: {
-        systemInstruction: SYSTEM_INSTRUCTION,
-        temperature: 0.3,
-        topP: 0.95,
-      },
+    // Using the classic generateContent pattern that worked before
+    const result = await model.generateContent({
+      contents: formattedContents,
     });
 
-    const responseText = response.text;
+    const responseText = result.response.text(); // Note: version-specific check, but .text() is standard for this pattern
     if (!responseText) throw new Error("Empty model response");
 
     const parsed = parseResponse(responseText);
