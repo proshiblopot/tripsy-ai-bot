@@ -86,7 +86,7 @@ export const sendMessageToGemini = async (
     });
 
     const text = response.text;
-    if (!text) throw new Error("EMPTY_RESPONSE");
+    if (!text || text.trim().length === 0) throw new Error("EMPTY_RESPONSE");
 
     const parsed = parseResponse(text);
     const finalModelLabel = `${currentModel}${useThinkingInThisRequest ? ' (thinking)' : ''}`;
@@ -115,6 +115,7 @@ export const sendMessageToGemini = async (
     const status = error.status || 0;
     const errorMessage = error.message?.toLowerCase() || "";
     
+    // Expanded list of errors that should trigger a fallback to another model/mode
     const isRetryable = 
       status === 429 || 
       status === 500 || 
@@ -124,22 +125,25 @@ export const sendMessageToGemini = async (
       errorMessage.includes('503') ||
       errorMessage.includes('resource_exhausted') ||
       errorMessage.includes('overloaded') ||
-      errorMessage.includes('unavailable');
+      errorMessage.includes('unavailable') ||
+      errorMessage.includes('empty_response') ||
+      errorMessage.includes('deadline_exceeded');
 
     if (isRetryable) {
       // 1. If failed with thinking, try the SAME model WITHOUT thinking
       if (useThinkingInThisRequest) {
-        console.info(`TriPsy: Thinking failed for ${currentModel}. Retrying without thinking...`);
+        console.info(`TriPsy: Issue with ${currentModel} in thinking mode. Retrying in standard mode...`);
         return sendMessageToGemini(history, newMessage, modelIndex, false);
       }
       
-      // 2. If already tried without thinking, move to NEXT model in hierarchy WITH thinking
+      // 2. If already tried without thinking, move to NEXT model in hierarchy
       if (modelIndex < MODELS_HIERARCHY.length - 1) {
-        console.info(`TriPsy: Standard request failed for ${currentModel}. Falling back to next model...`);
+        console.info(`TriPsy: Service issues with ${currentModel}. Falling back to next available model...`);
         return sendMessageToGemini(history, newMessage, modelIndex + 1, true);
       }
     }
 
+    // If we've exhausted all options, throw specific errors or the original error
     if (status === 429 || errorMessage.includes('429')) throw new Error("RATE_LIMIT_EXCEEDED");
     throw error;
   }

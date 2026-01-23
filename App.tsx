@@ -118,8 +118,8 @@ function App() {
     } catch (error: any) {
       console.error("App: Message error", error);
       let errorText = welcomeTab === 'ua' 
-        ? "Виникла помилка під час запиту до AI. Будь ласка, спробуйте ще раз." 
-        : "An error occurred during the AI request. Please try again.";
+        ? "Дуже багато запитів до TriPsy одночасно :( Будь ласка спробуйте звернутися трошки пізніше." 
+        : "TriPsy is currently receiving too many requests. Please try again in a little while.";
       
       setMessages(prev => [...prev, {
         id: Date.now().toString(),
