@@ -3,7 +3,7 @@ import { GoogleGenAI } from "@google/genai";
 import { Message, TriageData } from "../types";
 import { SYSTEM_INSTRUCTION } from "../constants";
 
-// Updated model list according to the guidelines for Gemini 3 and 2.5 series
+// Updated model list according to the guidelines for Gemini 3, 2.5 and 2.0 series
 const MODELS_HIERARCHY = [
   'gemini-3-pro-preview',
   'gemini-3-flash-preview',
@@ -31,16 +31,28 @@ function parseResponse(rawText: string): { text: string; triage: TriageData | nu
   return { text: rawText, triage: null };
 }
 
+/**
+ * Checks if a model supports the Thinking feature (Gemini 3 and 2.5 series)
+ */
+function supportsThinking(modelName: string): boolean {
+  return modelName.includes('gemini-3') || modelName.includes('gemini-2.5');
+}
+
+/**
+ * Returns appropriate thinking budget based on model class
+ */
+function getThinkingBudget(modelName: string): number {
+  if (modelName.includes('pro')) return 16384; // Solid reasoning for Pro
+  return 8192; // Faster reasoning for Flash
+}
+
 export const sendMessageToGemini = async (
   history: Message[], 
   newMessage: string,
-  modelIndex: number = 0
+  modelIndex: number = 0,
+  tryThinking: boolean = true
 ): Promise<{ text: string; triage: TriageData | null; modelUsed: string }> => {
   
-  /**
-   * Vite specific environment variable access.
-   * Prefixed with VITE_ to be exposed to the client-side bundle.
-   */
   const apiKey = (import.meta as any).env.VITE_GOOGLE_API_KEY;
 
   if (!apiKey) {
@@ -49,11 +61,8 @@ export const sendMessageToGemini = async (
   }
 
   const currentModel = MODELS_HIERARCHY[modelIndex] || 'gemini-3-flash-preview';
-  
-  // Initialize with named parameter { apiKey }
   const ai = new GoogleGenAI({ apiKey });
 
-  // Prepare chat contents history
   const formattedContents = history.slice(-10).map(msg => ({
     role: msg.role === 'model' ? 'model' : 'user',
     parts: [{ text: msg.text }]
@@ -61,22 +70,26 @@ export const sendMessageToGemini = async (
   
   formattedContents.push({ role: 'user', parts: [{ text: newMessage }] });
 
+  const useThinkingInThisRequest = tryThinking && supportsThinking(currentModel);
+
   try {
-    // Calling generateContent with current model and formatted contents
     const response = await ai.models.generateContent({
       model: currentModel,
       contents: formattedContents.map(c => ({ role: c.role as any, parts: c.parts })),
       config: {
         systemInstruction: SYSTEM_INSTRUCTION,
-        temperature: 0.7,
+        temperature: 0.3,
+        ...(useThinkingInThisRequest ? {
+          thinkingConfig: { thinkingBudget: getThinkingBudget(currentModel) }
+        } : {})
       },
     });
 
-    // Access the .text property (getter) directly as per guidelines
     const text = response.text;
     if (!text) throw new Error("EMPTY_RESPONSE");
 
     const parsed = parseResponse(text);
+    const finalModelLabel = `${currentModel}${useThinkingInThisRequest ? ' (thinking)' : ''}`;
 
     // Logging to internal monitoring
     fetch('/api/log', {
@@ -86,29 +99,48 @@ export const sendMessageToGemini = async (
         userText: newMessage,
         botResponse: parsed.text,
         triage: parsed.triage,
-        modelUsed: currentModel,
+        modelUsed: finalModelLabel,
         timestamp: new Date().toISOString()
       })
     }).catch(() => {});
 
     return { 
       ...parsed, 
-      modelUsed: currentModel 
+      modelUsed: finalModelLabel
     };
 
   } catch (error: any) {
-    console.warn(`Model ${currentModel} error:`, error);
+    console.warn(`Model ${currentModel} error (Thinking: ${useThinkingInThisRequest}):`, error);
 
-    const isRateLimit = error.message?.includes('429') || 
-                        error.status === 429 || 
-                        error.message?.includes('RESOURCE_EXHAUSTED');
+    const status = error.status || 0;
+    const errorMessage = error.message?.toLowerCase() || "";
+    
+    const isRetryable = 
+      status === 429 || 
+      status === 500 || 
+      status === 503 || 
+      status === 504 ||
+      errorMessage.includes('429') ||
+      errorMessage.includes('503') ||
+      errorMessage.includes('resource_exhausted') ||
+      errorMessage.includes('overloaded') ||
+      errorMessage.includes('unavailable');
 
-    // Fallback logic for free tier limits
-    if (isRateLimit && modelIndex < MODELS_HIERARCHY.length - 1) {
-      return sendMessageToGemini(history, newMessage, modelIndex + 1);
+    if (isRetryable) {
+      // 1. If failed with thinking, try the SAME model WITHOUT thinking
+      if (useThinkingInThisRequest) {
+        console.info(`TriPsy: Thinking failed for ${currentModel}. Retrying without thinking...`);
+        return sendMessageToGemini(history, newMessage, modelIndex, false);
+      }
+      
+      // 2. If already tried without thinking, move to NEXT model in hierarchy WITH thinking
+      if (modelIndex < MODELS_HIERARCHY.length - 1) {
+        console.info(`TriPsy: Standard request failed for ${currentModel}. Falling back to next model...`);
+        return sendMessageToGemini(history, newMessage, modelIndex + 1, true);
+      }
     }
 
-    if (isRateLimit) throw new Error("RATE_LIMIT_EXCEEDED");
+    if (status === 429 || errorMessage.includes('429')) throw new Error("RATE_LIMIT_EXCEEDED");
     throw error;
   }
 };
