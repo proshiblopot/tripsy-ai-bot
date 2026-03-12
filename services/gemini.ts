@@ -5,8 +5,8 @@ import { SYSTEM_INSTRUCTION } from "../constants";
 
 // Updated model list according to the guidelines for Gemini 3, 2.5 and 2.0 series
 const MODELS_HIERARCHY = [
-  'gemini-3-pro-preview',
-  'gemini-3-flash-preview',
+  'gemini-3.1-pro-preview',
+  'gemini-3.1-flash-preview',
   'gemini-2.5-pro',
   'gemini-2.5-flash',
   'gemini-2.0-pro',
@@ -60,7 +60,7 @@ export const sendMessageToGemini = async (
     throw new Error("API_KEY_MISSING");
   }
 
-  const currentModel = MODELS_HIERARCHY[modelIndex] || 'gemini-3-flash-preview';
+  const currentModel = MODELS_HIERARCHY[modelIndex] || 'gemini-3.1-flash-preview';
   const ai = new GoogleGenAI({ apiKey });
 
   const formattedContents = history.slice(-10).map(msg => ({
@@ -121,8 +121,11 @@ export const sendMessageToGemini = async (
       status === 500 || 
       status === 503 || 
       status === 504 ||
+      status === 404 ||
       errorMessage.includes('429') ||
       errorMessage.includes('503') ||
+      errorMessage.includes('404') ||
+      errorMessage.includes('not found') ||
       errorMessage.includes('resource_exhausted') ||
       errorMessage.includes('overloaded') ||
       errorMessage.includes('unavailable') ||

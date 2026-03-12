@@ -22,3 +22,9 @@ dist-ssr
 *.njsproj
 *.sln
 *.sw?
+
+# AI Studio migrations
+migrated_prompt_history/
+
+# Backups
+*.zip

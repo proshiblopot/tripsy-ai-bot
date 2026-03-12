@@ -206,7 +206,7 @@ function App() {
                 <div className="flex justify-start mb-6 pl-4 animate-pulse">
                    <div className="bg-white border border-slate-100 p-3 rounded-2xl rounded-tl-none shadow-sm flex items-center gap-2">
                       <Loader2 className="w-4 h-4 animate-spin text-teal-500" />
-                      <span className="text-sm text-slate-400">{welcomeTab === 'ua' ? 'Трипси думає...' : 'TriPsy is thinking...'}</span>
+                      <span className="text-sm text-slate-400">{welcomeTab === 'ua' ? 'TriPsy міркує...' : 'TriPsy is thinking...'}</span>
                    </div>
                 </div>
               )}
