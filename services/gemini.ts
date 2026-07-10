@@ -151,3 +151,22 @@ export const sendMessageToGemini = async (
     throw error;
   }
 };
+
+export const logAvailableModels = async () => {
+  const apiKey = (import.meta as any).env.VITE_GOOGLE_API_KEY;
+  if (!apiKey) return;
+  try {
+    const ai = new GoogleGenAI({ apiKey });
+    const response = await ai.models.list();
+    console.log("--- AVAILABLE GEMINI MODELS ---");
+    for await (const model of response) {
+      console.log(`Model: ${model.name}`);
+    }
+    console.log("-------------------------------");
+  } catch (error) {
+    console.error("Failed to fetch available models:", error);
+  }
+};
+
+// Immediately invoke to log models to the console
+logAvailableModels();
