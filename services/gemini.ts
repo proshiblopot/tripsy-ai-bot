@@ -3,15 +3,16 @@ import { GoogleGenAI } from "@google/genai";
 import { Message, TriageData } from "../types";
 import { SYSTEM_INSTRUCTION } from "../constants";
 
-// Updated model list according to the guidelines for Gemini 3, 2.5 and 2.0 series
+// Updated model list with actual available models from API, prioritizing the latest 3.5 series
 const MODELS_HIERARCHY = [
+  'gemini-3.5-flash',
   'gemini-3.1-pro-preview',
-  'gemini-3.1-flash-preview',
+  // 'gemini-3.1-flash-lite-preview', // занадто легковажна для цього бота
+  'gemini-3-pro-preview',
   'gemini-2.5-pro',
+  'gemini-3-flash-preview',
   'gemini-2.5-flash',
-  'gemini-2.0-pro',
-  'gemini-2.0-flash',
-  'gemini-flash-lite-latest'
+  'gemini-2.0-flash'
 ];
 
 function parseResponse(rawText: string): { text: string; triage: TriageData | null } {
@@ -151,22 +152,3 @@ export const sendMessageToGemini = async (
     throw error;
   }
 };
-
-export const logAvailableModels = async () => {
-  const apiKey = (import.meta as any).env.VITE_GOOGLE_API_KEY;
-  if (!apiKey) return;
-  try {
-    const ai = new GoogleGenAI({ apiKey });
-    const response = await ai.models.list();
-    console.log("--- AVAILABLE GEMINI MODELS ---");
-    for await (const model of response) {
-      console.log(`Model: ${model.name}`);
-    }
-    console.log("-------------------------------");
-  } catch (error) {
-    console.error("Failed to fetch available models:", error);
-  }
-};
-
-// Immediately invoke to log models to the console
-logAvailableModels();
